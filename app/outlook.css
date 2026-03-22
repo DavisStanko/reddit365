@@ -572,6 +572,139 @@ html, body {
   color: var(--outlook-text-tertiary);
 }
 
+/* Post item — selected state */
+
+.post-item--selected {
+  background: var(--outlook-blue-light);
+  border-left: 3px solid var(--outlook-blue);
+  padding-left: 13px;
+}
+
+.post-item--selected:hover {
+  background: var(--outlook-blue-light);
+}
+
+.post-item--selected .post-item__title {
+  color: var(--outlook-blue);
+}
+
+.post-item:focus-visible {
+  outline: 2px solid var(--outlook-blue);
+  outline-offset: -2px;
+}
+
+/* ========================================================================
+   SETTINGS DROPDOWN
+   ======================================================================== */
+
+.top-bar__settings-wrapper {
+  position: relative;
+}
+
+.top-bar__action--active {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+
+.settings-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: #FFFFFF;
+  border: 1px solid var(--outlook-border);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.14),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  z-index: 200;
+  overflow: hidden;
+  animation: settings-slide-in 160ms cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+@keyframes settings-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settings-dropdown__header {
+  padding: 12px 16px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--outlook-text-primary);
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.settings-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 100ms ease;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.settings-dropdown__item:hover {
+  background: #F5F5F5;
+}
+
+.settings-dropdown__icon {
+  color: var(--outlook-text-secondary);
+  flex-shrink: 0;
+}
+
+.settings-dropdown__label {
+  flex: 1;
+  color: var(--outlook-text-primary);
+  font-size: 13px;
+}
+
+/* Toggle switch — Fluent style */
+
+.settings-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  background: #C4C4C4;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 200ms ease;
+  flex-shrink: 0;
+}
+
+.settings-toggle--on {
+  background: var(--outlook-blue);
+}
+
+.settings-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.settings-toggle--on .settings-toggle__thumb {
+  transform: translateX(20px);
+}
+
+.settings-toggle:focus-visible {
+  outline: 2px solid var(--outlook-blue);
+  outline-offset: 2px;
+}
+
 /* ========================================================================
    CONTENT PANE — EMPTY STATE
    ======================================================================== */
@@ -609,6 +742,181 @@ html, body {
   color: var(--outlook-text-secondary);
   line-height: 18px;
   margin: 0;
+}
+
+/* Content pane — reading mode */
+
+.content-pane--reading {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+/* ========================================================================
+   READING VIEW
+   ======================================================================== */
+
+.reading-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Toolbar */
+
+.reading-view__toolbar {
+  display: flex;
+  align-items: center;
+  padding: 6px 20px;
+  border-bottom: 1px solid var(--outlook-border);
+  flex-shrink: 0;
+  background: #FAFAFA;
+}
+
+.reading-view__toolbar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.reading-view__toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--outlook-text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.reading-view__toolbar-btn:hover {
+  background: #EBEBEB;
+  color: var(--outlook-text-primary);
+}
+
+/* Header */
+
+.reading-view__header {
+  padding: 24px 32px 0;
+}
+
+.reading-view__meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.reading-view__subreddit {
+  font-weight: 700;
+  color: var(--outlook-blue);
+}
+
+.reading-view__author {
+  color: var(--outlook-text-secondary);
+}
+
+.reading-view__dot {
+  color: var(--outlook-text-tertiary);
+}
+
+.reading-view__time {
+  color: var(--outlook-text-tertiary);
+}
+
+.reading-view__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--outlook-text-primary);
+  line-height: 28px;
+  margin: 0;
+}
+
+/* Vote bar */
+
+.reading-view__vote-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 32px 16px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.reading-view__vote-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--outlook-text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.reading-view__vote-btn:hover {
+  background: #F0F0F0;
+  color: var(--outlook-blue);
+}
+
+.reading-view__score {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--outlook-blue);
+}
+
+.reading-view__comment-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--outlook-text-secondary);
+}
+
+/* Media */
+
+.reading-view__media {
+  padding: 20px 32px;
+}
+
+.reading-view__image {
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #F5F5F5;
+  border: 1px solid #EBEBEB;
+}
+
+/* Body */
+
+.reading-view__body {
+  padding: 20px 32px 40px;
+  line-height: 1.65;
+}
+
+.reading-view__paragraph {
+  font-size: 14px;
+  color: var(--outlook-text-primary);
+  line-height: 22px;
+  margin: 0 0 14px;
+}
+
+.reading-view__paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.reading-view__paragraph strong {
+  font-weight: 700;
 }
 
 /* ========================================================================
