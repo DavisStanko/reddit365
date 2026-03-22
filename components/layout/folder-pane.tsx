@@ -10,6 +10,7 @@ import {
   Hash,
   TrendingUp,
 } from "lucide-react";
+import { useAppContext } from "@/components/app-context";
 
 interface SubredditItem {
   id: string;
@@ -94,7 +95,7 @@ function FolderGroup({
 }
 
 export function FolderPane() {
-  const [activeId, setActiveId] = useState<string>("all");
+  const { activeFeed, setActiveFeed } = useAppContext();
 
   return (
     <aside className="folder-pane" aria-label="Subreddit folders">
@@ -110,14 +111,14 @@ export function FolderPane() {
         <FolderGroup
           title="Favorites"
           items={FAVORITES}
-          activeId={activeId}
-          onSelect={setActiveId}
+          activeId={activeFeed}
+          onSelect={setActiveFeed}
         />
         <FolderGroup
           title="Subscriptions"
           items={SUBSCRIBED}
-          activeId={activeId}
-          onSelect={setActiveId}
+          activeId={activeFeed}
+          onSelect={setActiveFeed}
         />
       </div>
     </aside>
