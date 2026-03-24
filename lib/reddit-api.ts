@@ -109,8 +109,60 @@ export async function fetchRedditPosts(
         comments: d.num_comments ?? 0,
         body,
         imageUrl,
+        permalink: d.permalink,
       };
     });
 
   return { posts, after: nextAfter };
+}
+
+/** Fetch comments for a specific post permalink */
+export async function fetchRedditComments(permalink: string): Promise<import("./sample-posts").RedditComment[]> {
+  // Strip trailing slash if present, then append .json
+  const path = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
+  const url = `https://www.reddit.com${path}.json?raw_json=1`;
+
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
+    },
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Reddit API error: ${res.status} ${res.statusText}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const json: any = await res.json();
+  
+  // Reddit returns an array of 2 items: [0] = post, [1] = comments
+  if (!Array.isArray(json) || json.length < 2) return [];
+
+  const commentsData = json[1]?.data?.children ?? [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapComment(c: any): import("./sample-posts").RedditComment | null {
+    if (c.kind !== "t1") return null; // t1 = comment
+    const d = c.data;
+    if (!d || !d.body) return null;
+
+    let replies: import("./sample-posts").RedditComment[] = [];
+    if (d.replies && d.replies.data && d.replies.data.children) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      replies = d.replies.data.children.map(mapComment).filter(Boolean) as import("./sample-posts").RedditComment[];
+    }
+
+    return {
+      id: d.id,
+      author: d.author,
+      time: formatAge(d.created_utc),
+      score: formatScore(d.score),
+      body: d.body,
+      replies: replies.length > 0 ? replies : undefined,
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return commentsData.map(mapComment).filter(Boolean) as import("./sample-posts").RedditComment[];
 }

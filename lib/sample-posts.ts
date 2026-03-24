@@ -8,6 +8,16 @@ export interface Post {
   comments: number;
   body: string;
   imageUrl?: string;
+  permalink?: string;
+}
+
+export interface RedditComment {
+  id: string;
+  author: string;
+  time: string;
+  score: string;
+  body: string;
+  replies?: RedditComment[];
 }
 
 export const SAMPLE_POSTS: Post[] = [

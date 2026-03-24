@@ -28,7 +28,7 @@ export function TopBar() {
     <header className="top-bar" role="banner">
       {/* Left: Wordmark */}
       <div className="top-bar__left">
-        <span className="top-bar__wordmark">Reddit365</span>
+        <span className="top-bar__wordmark">Outlook</span>
       </div>
 
       {/* Center: Search bar */}

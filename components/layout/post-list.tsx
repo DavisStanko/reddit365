@@ -15,76 +15,8 @@ const SORT_LABELS = {
   top: "Top",
 } as const;
 
-/** Map folder-pane id → Reddit path segment */
-function buildRedditUrl(sub: string, sort: string, after?: string | null): string {
-  let path: string;
-  const sortSuffix = sort === "hot" ? "" : `/${sort}`;
-
-  switch (sub) {
-    case "frontpage":
-      path = sort === "hot" ? "/" : `/${sort}`;
-      break;
-    case "all":
-      path = `/r/all${sortSuffix}`;
-      break;
-    case "popular":
-      path = `/r/popular${sortSuffix}`;
-      break;
-    default: {
-      const name = sub.startsWith("r/") ? sub.slice(2) : sub;
-      path = `/r/${name}${sortSuffix}`;
-      break;
-    }
-  }
-
-  const params = new URLSearchParams({ limit: "25", raw_json: "1" });
-  if (after) params.set("after", after);
-
-  return `https://www.reddit.com${path}.json?${params.toString()}`;
-}
-
-function formatAge(created_utc: number): string {
-  const diffMs = Date.now() - created_utc * 1000;
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 60) return `${diffMins}m`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h`;
-  return `${Math.floor(diffHours / 24)}d`;
-}
-
-function formatScore(score: number): string {
-  if (score >= 1000) return `${(score / 1000).toFixed(1)}k`;
-  return String(score);
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapRedditPost(d: any, idx: number): Post {
-  const body: string =
-    d.selftext?.trim()
-      ? d.selftext
-      : d.url && !d.url.startsWith("https://www.reddit.com")
-      ? `[Link post] ${d.url}`
-      : "(No body text)";
-
-  let imageUrl: string | undefined;
-  if (d.post_hint === "image" && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(d.url ?? "")) {
-    imageUrl = d.url;
-  } else if (d.preview?.images?.[0]?.source?.url) {
-    imageUrl = (d.preview.images[0].source.url as string).replace(/&amp;/g, "&");
-  }
-
-  return {
-    id: idx,
-    title: d.title,
-    subreddit: `r/${d.subreddit}`,
-    author: d.author,
-    time: formatAge(d.created_utc),
-    score: formatScore(d.score),
-    comments: d.num_comments ?? 0,
-    body,
-    imageUrl,
-  };
-}
+// Map folder-pane id to Reddit path segment (handled by API now)
+// Local API route handles data mapping
 
 export function PostList() {
   const { activeFeed, selectedPost, setSelectedPost, sortMode, setSortMode } =
@@ -119,20 +51,16 @@ export function PostList() {
       abortRef.current = controller;
 
       try {
-        const url = buildRedditUrl(feed, sort, afterToken);
+        const params = new URLSearchParams({ sub: feed, sort });
+        if (afterToken) params.set("after", afterToken);
+        const url = `/api/posts?${params.toString()}`;
+        
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const json: any = await res.json();
-        const children = json?.data?.children ?? [];
-        const nextAfter: string | null = json?.data?.after ?? null;
-
-        const newPosts: Post[] = children
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.kind === "t3")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any, i: number) => mapRedditPost(c.data, append ? (posts.length + i) : i));
+        const data = await res.json();
+        const newPosts: Post[] = data.posts || [];
+        const nextAfter: string | null = data.after || null;
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
