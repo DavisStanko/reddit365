@@ -4,15 +4,10 @@ import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Inbox,
-  Send,
-  FilePenLine,
-  Trash2,
-  ShieldAlert,
-  StickyNote,
-  Archive,
-  History,
-  Search,
+  Globe,
+  TrendingUp,
+  Star,
+  Hash,
 } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 
@@ -24,18 +19,20 @@ interface SubredditItem {
 }
 
 const FAVORITES: SubredditItem[] = [
-  { id: "inbox", label: "Inbox", icon: Inbox, unreadCount: 12 },
-  { id: "sent", label: "Sent Items", icon: Send },
-  { id: "drafts", label: "Drafts", icon: FilePenLine },
+  { id: "all", label: "r/all", icon: Globe },
+  { id: "popular", label: "r/popular", icon: TrendingUp },
+  { id: "frontpage", label: "Front Page", icon: Star },
 ];
 
 const SUBSCRIBED: SubredditItem[] = [
-  { id: "deleted", label: "Deleted Items", icon: Trash2, unreadCount: 90 },
-  { id: "junk", label: "Junk Email", icon: ShieldAlert },
-  { id: "notes", label: "Notes", icon: StickyNote },
-  { id: "archive", label: "Archive", icon: Archive },
-  { id: "history", label: "Conversation History", icon: History },
-  { id: "search", label: "Search Folders", icon: Search },
+  { id: "askreddit", label: "r/AskReddit", icon: Hash, unreadCount: 42 },
+  { id: "worldnews", label: "r/worldnews", icon: Hash, unreadCount: 18 },
+  { id: "programming", label: "r/programming", icon: Hash, unreadCount: 7 },
+  { id: "technology", label: "r/technology", icon: Hash },
+  { id: "science", label: "r/science", icon: Hash },
+  { id: "gaming", label: "r/gaming", icon: Hash },
+  { id: "movies", label: "r/movies", icon: Hash },
+  { id: "music", label: "r/music", icon: Hash },
 ];
 
 interface FolderGroupProps {
@@ -106,7 +103,7 @@ export function FolderPane() {
       <div className="folder-pane__compose">
         <button className="folder-pane__compose-btn">
           <span className="folder-pane__compose-btn-icon">+</span>
-          <span>New mail</span>
+          <span>New post</span>
         </button>
       </div>
 
