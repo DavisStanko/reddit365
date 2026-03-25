@@ -63,7 +63,31 @@ export async function fetchRedditPosts(
   });
 
   if (!res.ok) {
-    throw new Error(`Reddit API error: ${res.status} ${res.statusText}`);
+    console.warn(`Reddit API error: ${res.status} ${res.statusText}. Falling back to sample posts.`);
+    const { SAMPLE_POSTS } = await import("./sample-posts");
+    
+    let mockPosts = [...SAMPLE_POSTS];
+    if (sub !== "all" && sub !== "frontpage" && sub !== "popular") {
+      const normalizedSub = sub.toLowerCase().startsWith("r/") ? sub.toLowerCase() : `r/${sub.toLowerCase()}`;
+      mockPosts = mockPosts.filter(p => p.subreddit.toLowerCase() === normalizedSub);
+      
+      if (mockPosts.length === 0) {
+        mockPosts = [
+          {
+            id: 999,
+            title: `Welcome to ${normalizedSub} (Mock Data)`,
+            subreddit: normalizedSub,
+            author: "mock_user",
+            time: "1m",
+            score: "1",
+            comments: 0,
+            body: "There are no sample posts for this specific subreddit. This is a generated mock post because Reddit API returned 403 Forbidden.",
+            permalink: `/${normalizedSub}/comments/mock`
+          }
+        ];
+      }
+    }
+    return { posts: mockPosts, after: null };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +154,25 @@ export async function fetchRedditComments(permalink: string): Promise<import("./
   });
 
   if (!res.ok) {
-    throw new Error(`Reddit API error: ${res.status} ${res.statusText}`);
+    console.warn(`Reddit API error: ${res.status} ${res.statusText}. Falling back to sample comments.`);
+    return [
+      {
+        id: "sample_comment_1",
+        author: "reddit_user",
+        time: "2h",
+        score: "42",
+        body: "This is a sample comment because Reddit API returned an error (likely 403 Forbidden).",
+        replies: [
+          {
+            id: "sample_comment_2",
+            author: "another_user",
+            time: "1h",
+            score: "12",
+            body: "This is a sample reply.",
+          }
+        ]
+      }
+    ];
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
