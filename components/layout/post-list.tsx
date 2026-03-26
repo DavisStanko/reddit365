@@ -38,6 +38,7 @@ export function PostList() {
   // doesn't re-fetch on mount after the feed-change effect already did it
   const loadedKeyRef = useRef<string>("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef(false);
   const afterRef = useRef<string | null>(null);
@@ -93,7 +94,7 @@ export function PostList() {
         setLoading(false);
       }
     },
-    [],
+      [],
   );
 
   // When feed or sort changes → reset and fetch first page
@@ -127,7 +128,7 @@ export function PostList() {
           doFetch(activeFeed, sortMode, afterRef.current, true);
         }
       },
-      { rootMargin: "200px" },
+      { root: listRef.current, rootMargin: "200px" },
     );
 
     if (sentinelRef.current) {
@@ -199,7 +200,7 @@ export function PostList() {
         </div>
       </div>
 
-      <div className="post-list__items" role="list">
+      <div ref={listRef} className="post-list__items" role="list">
         {error && (
           <div className="post-list__error" role="alert">
             {error}
