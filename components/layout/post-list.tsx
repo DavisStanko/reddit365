@@ -94,7 +94,7 @@ export function PostList() {
         setLoading(false);
       }
     },
-      [],
+    [],
   );
 
   // When feed or sort changes → reset and fetch first page
