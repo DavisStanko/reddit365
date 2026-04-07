@@ -14,7 +14,7 @@ import { AppProvider } from "@/components/app-context";
 
 const MIN_FOLDER_WIDTH = 160;
 const MAX_FOLDER_WIDTH = 400;
-const DEFAULT_FOLDER_WIDTH = 176;
+const DEFAULT_FOLDER_WIDTH = 220;
 
 const MIN_LIST_WIDTH = 200;
 const MAX_LIST_WIDTH = 600;

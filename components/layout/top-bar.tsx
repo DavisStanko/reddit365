@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Menu,
+  Gift,
+  MessageSquare,
   Search,
   Bell,
   Settings,
@@ -19,6 +21,7 @@ import {
   Tag,
   Clock3,
   Printer,
+  CircleUserRound,
 } from "lucide-react";
 import { useSettings } from "@/components/settings-context";
 
@@ -105,6 +108,22 @@ export function TopBar() {
         <div className="top-bar__right">
           <button
             className="top-bar__action"
+            title="Gift"
+            aria-label="Gift"
+          >
+            <Gift size={16} />
+          </button>
+
+          <button
+            className="top-bar__action"
+            title="Chat"
+            aria-label="Chat"
+          >
+            <MessageSquare size={16} />
+          </button>
+
+          <button
+            className="top-bar__action"
             title="Notifications"
             aria-label="Notifications"
           >
@@ -157,7 +176,7 @@ export function TopBar() {
             title="Account"
             aria-label="Account menu"
           >
-            <span className="top-bar__avatar-initials">R</span>
+            <CircleUserRound size={18} strokeWidth={1.8} />
           </button>
         </div>
       </div>
