@@ -2,26 +2,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import {
-  Menu,
-  Gift,
-  MessageSquare,
   Search,
   Bell,
   Settings,
   Image as ImageIcon,
-  Mail,
-  Trash2,
-  Archive,
-  Send,
-  Reply,
-  ReplyAll,
-  Forward,
-  Undo2,
-  Sparkles,
-  Tag,
-  Clock3,
-  Printer,
   CircleUserRound,
+  MessageSquare,
+  Video,
+  CalendarCheck,
+  Lightbulb,
 } from "lucide-react";
 import { useSettings } from "@/components/settings-context";
 
@@ -47,24 +36,6 @@ function AppLauncherIcon() {
     </svg>
   );
 }
-
-const RIBBON_TABS = ["File", "Home", "View", "Help"] as const;
-
-const COMMANDS = [
-  { label: "New mail", icon: Mail, primary: true },
-  { label: "Delete", icon: Trash2 },
-  { label: "Archive", icon: Archive },
-  { label: "Sweep", icon: Sparkles },
-  { label: "Move to", icon: Send },
-  { label: "Reply", icon: Reply },
-  { label: "Reply all", icon: ReplyAll },
-  { label: "Forward", icon: Forward },
-  { label: "Quick steps", icon: Tag },
-  { label: "Read / Unread", icon: Mail },
-  { label: "Flag", icon: Clock3 },
-  { label: "Print", icon: Printer },
-  { label: "Undo", icon: Undo2 },
-];
 
 export function TopBar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -108,18 +79,26 @@ export function TopBar() {
         <div className="top-bar__right">
           <button
             className="top-bar__action"
-            title="Gift"
-            aria-label="Gift"
+            title="Teams"
+            aria-label="Teams"
           >
-            <Gift size={16} />
+            <MessageSquare size={16} />
           </button>
 
           <button
             className="top-bar__action"
-            title="Chat"
-            aria-label="Chat"
+            title="Meet"
+            aria-label="Meet"
           >
-            <MessageSquare size={16} />
+            <Video size={16} />
+          </button>
+          
+          <button
+            className="top-bar__action"
+            title="My Day"
+            aria-label="My Day"
+          >
+            <CalendarCheck size={16} />
           </button>
 
           <button
@@ -170,6 +149,14 @@ export function TopBar() {
               </div>
             )}
           </div>
+          
+          <button
+            className="top-bar__action"
+            title="Tips"
+            aria-label="Tips"
+          >
+            <Lightbulb size={16} />
+          </button>
 
           <button
             className="top-bar__avatar"
@@ -177,51 +164,6 @@ export function TopBar() {
             aria-label="Account menu"
           >
             <CircleUserRound size={18} strokeWidth={1.8} />
-          </button>
-        </div>
-      </div>
-
-      <div className="top-bar__subheader">
-        <div className="top-bar__subheader-tabs">
-          <button
-            className="top-bar__menu-button"
-            aria-label="Toggle navigation"
-          >
-            <Menu size={16} />
-          </button>
-
-          <nav className="top-bar__tabs" aria-label="Ribbon tabs">
-            {RIBBON_TABS.map((tab) => (
-              <button
-                key={tab}
-                className={`top-bar__tab ${tab === "Home" ? "top-bar__tab--active" : ""}`}
-                type="button"
-              >
-                {tab}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="top-bar__ribbon">
-          <div className="top-bar__commandbar" aria-label="Command bar">
-            {COMMANDS.map((command) => {
-              const Icon = command.icon;
-              return (
-                <button
-                  key={command.label}
-                  className={`top-bar__command-btn ${command.primary ? "top-bar__command-btn--primary" : ""}`}
-                  type="button"
-                >
-                  <Icon size={14} />
-                  <span>{command.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <button className="top-bar__copilot" type="button" aria-label="Copilot">
-            <span className="top-bar__copilot-orb" />
           </button>
         </div>
       </div>

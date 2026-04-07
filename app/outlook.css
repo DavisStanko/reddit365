@@ -25,8 +25,8 @@ body {
 
 /* Outlook color tokens */
 :root {
-  --outlook-blue: #0078d4;
-  --outlook-blue-hover: #106ebe;
+  --outlook-blue: #0F6CBD;
+  --outlook-blue-hover: #115EA3;
   --outlook-blue-light: #deecf9;
   --outlook-sidebar-bg: #1f1f1f;
   --outlook-sidebar-hover: #2d2d2d;
@@ -37,6 +37,10 @@ body {
   --outlook-text-primary: #242424;
   --outlook-text-secondary: #616161;
   --outlook-text-tertiary: #8a8a8a;
+  
+  --header-bg: #0F6CBD;
+  --header-hover: #0C3B5E;
+  --search-bg: rgba(255, 255, 255, 0.7);
 }
 
 /* ========================================================================
@@ -56,6 +60,20 @@ body {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+.outlook-shell__main-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.outlook-shell__panes {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 .outlook-shell__folder {
@@ -97,7 +115,7 @@ body {
   display: flex;
   align-items: center;
   height: 48px;
-  background: var(--outlook-blue);
+  background: var(--header-bg);
   padding: 0 14px 0 12px;
   gap: 12px;
 }
@@ -117,7 +135,7 @@ body {
 }
 
 .top-bar__launcher:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--header-hover);
 }
 
 .top-bar__launcher-icon {
@@ -139,26 +157,30 @@ body {
   width: 100%;
   max-width: 560px;
   height: 32px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: var(--search-bg);
+  border: none;
   border-radius: 4px;
   padding: 0 11px;
   gap: 9px;
   transition:
+    background 150ms ease,
     border-color 150ms ease,
     box-shadow 150ms ease;
 }
 
 .top-bar__search:focus-within {
   background: #ffffff;
-  border-color: var(--outlook-blue);
   box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.18);
 }
 
 .top-bar__search-icon {
-  color: var(--outlook-text-secondary);
+  color: #ffffff;
   flex-shrink: 0;
   transition: color 150ms ease;
+}
+
+.top-bar__search:focus-within .top-bar__search-icon {
+  color: var(--outlook-blue);
 }
 
 .top-bar__search-input {
@@ -167,11 +189,20 @@ body {
   border: none;
   outline: none;
   font-size: 13px;
-  color: var(--outlook-text-primary);
+  color: #ffffff;
   font-family: inherit;
 }
 
 .top-bar__search-input::placeholder {
+  color: #ffffff;
+  opacity: 0.9;
+}
+
+.top-bar__search:focus-within .top-bar__search-input {
+  color: var(--outlook-text-primary);
+}
+
+.top-bar__search:focus-within .top-bar__search-input::placeholder {
   color: var(--outlook-text-tertiary);
 }
 
@@ -198,7 +229,7 @@ body {
 }
 
 .top-bar__action:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--header-hover);
 }
 
 .top-bar__avatar {
@@ -224,15 +255,21 @@ body {
   flex-shrink: 0;
 }
 
-.top-bar__subheader {
+/* ========================================================================
+   RIBBON
+   ======================================================================== */
+
+.ribbon {
   display: flex;
   flex-direction: column;
   background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
+  z-index: 90;
 }
 
-.top-bar__subheader-tabs {
+.ribbon__tabs-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -240,19 +277,16 @@ body {
   padding: 0 14px;
 }
 
-.top-bar__ribbon {
+.ribbon__command-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 60px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 14px 8px;
   background: #ffffff;
-  border-top: 1px solid #f1f1f1;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.top-bar__menu-button {
+.ribbon__menu-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -268,34 +302,39 @@ body {
     color 120ms ease;
 }
 
-.top-bar__menu-button:hover {
+.ribbon__menu-button:hover {
   background: #f2f2f2;
   color: var(--outlook-text-primary);
 }
 
-.top-bar__tabs {
+.ribbon__tabs {
   display: flex;
   align-items: center;
   gap: 18px;
 }
 
-.top-bar__tab {
+.ribbon__tab {
   position: relative;
   padding: 0;
   border: none;
   background: transparent;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--outlook-text-secondary);
   cursor: pointer;
   font-family: inherit;
 }
 
-.top-bar__tab--active {
+.ribbon__tab:hover {
   color: var(--outlook-text-primary);
 }
 
-.top-bar__tab--active::after {
+.ribbon__tab--active {
+  font-weight: 600;
+  color: var(--outlook-text-primary);
+}
+
+.ribbon__tab--active::after {
   content: "";
   position: absolute;
   left: 0;
@@ -306,7 +345,7 @@ body {
   background: var(--outlook-blue);
 }
 
-.top-bar__commandbar {
+.ribbon__commandbar {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -315,46 +354,53 @@ body {
   overflow: hidden;
 }
 
-.top-bar__command-btn {
+.ribbon__command-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 32px;
   padding: 0 10px;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--outlook-text-secondary);
+  color: var(--outlook-text-primary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
+  transition: background 120ms ease;
 }
 
-.top-bar__command-btn:hover {
+.ribbon__command-btn:hover {
   background: #f3f3f3;
-  color: var(--outlook-text-primary);
 }
 
-.top-bar__command-btn--primary {
+.ribbon__command-btn--primary {
   color: #ffffff;
   background: var(--outlook-blue);
   padding: 0 12px;
 }
 
-.top-bar__command-btn--primary:hover {
+.ribbon__command-btn--primary:hover {
   background: var(--outlook-blue-hover);
   color: #ffffff;
 }
 
-.top-bar__command-btn svg {
+.ribbon__command-btn svg {
   flex-shrink: 0;
+  color: var(--outlook-text-secondary);
 }
 
-.top-bar__copilot {
+.ribbon__command-btn--primary svg {
+  color: #ffffff;
+}
+
+.ribbon__command-btn-chevron {
+  margin-left: -2px;
+  opacity: 0.8;
+}
+
+.ribbon__copilot {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -368,7 +414,7 @@ body {
   flex-shrink: 0;
 }
 
-.top-bar__copilot-orb {
+.ribbon__copilot-orb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -424,7 +470,7 @@ body {
 }
 
 .icon-rail__item:hover {
-  background: #f4f6f9;
+  background: #EBF3FC;
   color: var(--outlook-blue);
 }
 
@@ -591,25 +637,14 @@ body {
 }
 
 .folder-item--active {
-  background: var(--outlook-blue-light);
-  color: var(--outlook-blue);
+  background: #CFE4FA;
+  color: var(--outlook-text-primary);
   font-weight: 600;
   position: relative;
 }
 
-.folder-item--active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: var(--outlook-blue);
-  border-radius: 0 4px 4px 0;
-}
-
 .folder-item--active:hover {
-  background: var(--outlook-blue-light);
+  background: #B4D6FA;
 }
 
 .folder-item__icon {
