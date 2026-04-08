@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   ArrowBigUp,
   ArrowBigDown,
@@ -11,16 +17,14 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import type { RedditComment } from "@/lib/sample-posts";
+import type { RedditCommentPageItem } from "@/lib/reddit-api";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
 
-function CommentNode({
-  comment,
-  depth = 0,
-}: {
-  comment: RedditComment;
-  depth?: number;
-}) {
+type CommentItem = RedditCommentPageItem;
+
+function CommentNode({ comment }: { comment: CommentItem }) {
+  const depth = comment.depth;
   return (
     <div
       className={`reading-view__comment depth-${depth}`}
@@ -49,38 +53,121 @@ function CommentNode({
       >
         {comment.body}
       </div>
-      {comment.replies &&
-        comment.replies.map((reply) => (
-          <CommentNode key={reply.id} comment={reply} depth={depth + 1} />
-        ))}
     </div>
   );
 }
 
-function CommentThread({ permalink }: { permalink: string }) {
-  const [comments, setComments] = useState<RedditComment[]>([]);
+function CommentThread({
+  permalink,
+  scrollRootRef,
+}: {
+  permalink: string;
+  scrollRootRef: RefObject<HTMLDivElement | null>;
+}) {
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingComments, setLoadingComments] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const requestIdRef = useRef(0);
+
+  const loadComments = useCallback(
+    async (cursor: string | null, replace: boolean) => {
+      const requestId = ++requestIdRef.current;
+      setError(null);
+
+      if (replace) {
+        setLoadingComments(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      try {
+        const params = new URLSearchParams({
+          permalink,
+          limit: "5",
+        });
+
+        if (cursor) {
+          params.set("cursor", cursor);
+        }
+
+        const res = await fetch(`/api/comments?${params.toString()}`);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = (await res.json()) as {
+          comments?: CommentItem[];
+          nextCursor?: string | null;
+        };
+
+        if (requestId !== requestIdRef.current) return;
+
+        const pageComments = Array.isArray(data.comments) ? data.comments : [];
+        setComments((prev) =>
+          replace ? pageComments : [...prev, ...pageComments],
+        );
+        setNextCursor(data.nextCursor ?? null);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        console.error("Failed to load comments:", err);
+        setError("Could not load replies right now.");
+      } finally {
+        if (requestId !== requestIdRef.current) return;
+        if (replace) {
+          setLoadingComments(false);
+        } else {
+          setLoadingMore(false);
+        }
+      }
+    },
+    [permalink],
+  );
 
   useEffect(() => {
-    let isMounted = true;
-
-    fetch(`/api/comments?permalink=${encodeURIComponent(permalink)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (isMounted) {
-          setComments(Array.isArray(data) ? data : []);
-          setLoadingComments(false);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load comments:", err);
-        if (isMounted) setLoadingComments(false);
-      });
+    requestIdRef.current += 1;
+    setComments([]);
+    setNextCursor(null);
+    setError(null);
+    void loadComments(null, true);
 
     return () => {
-      isMounted = false;
+      requestIdRef.current += 1;
     };
-  }, [permalink]);
+  }, [loadComments, permalink]);
+
+  useEffect(() => {
+    observerRef.current?.disconnect();
+
+    const root = scrollRootRef.current;
+    const sentinel = sentinelRef.current;
+
+    if (!root || !sentinel) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          !loadingComments &&
+          !loadingMore &&
+          nextCursor
+        ) {
+          void loadComments(nextCursor, false);
+        }
+      },
+      { root, rootMargin: "200px" },
+    );
+
+    observerRef.current.observe(sentinel);
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [loadComments, loadingComments, loadingMore, nextCursor, scrollRootRef]);
 
   return (
     <div
@@ -90,6 +177,14 @@ function CommentThread({ permalink }: { permalink: string }) {
       <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
         Replies
       </h3>
+      {error && (
+        <div
+          style={{ color: "#a4262c", fontSize: "14px", marginBottom: "12px" }}
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
       {loadingComments && (
         <div
           style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
@@ -106,8 +201,23 @@ function CommentThread({ permalink }: { permalink: string }) {
       )}
       {!loadingComments &&
         comments.map((comment) => (
-          <CommentNode key={comment.id} comment={comment} />
+          <CommentNode
+            key={`${comment.id}-${comment.depth}`}
+            comment={comment}
+          />
         ))}
+      <div ref={sentinelRef} aria-hidden="true" />
+      {loadingMore && (
+        <div
+          style={{
+            color: "var(--outlook-text-secondary)",
+            fontSize: "14px",
+            marginTop: "12px",
+          }}
+        >
+          Loading more replies...
+        </div>
+      )}
     </div>
   );
 }
@@ -115,6 +225,7 @@ function CommentThread({ permalink }: { permalink: string }) {
 export function ContentPane() {
   const { mediaEnabled } = useSettings();
   const { selectedPost: post } = useAppContext();
+  const readingViewRef = useRef<HTMLDivElement | null>(null);
   const mediaUrl = post?.mediaUrl ?? post?.imageUrl;
   const mediaType = post?.mediaType ?? "image";
 
@@ -132,7 +243,7 @@ export function ContentPane() {
       className="content-pane content-pane--reading"
       aria-label="Content"
     >
-      <div className="reading-view">
+      <div className="reading-view" ref={readingViewRef}>
         <div className="reading-view__toolbar">
           <div className="reading-view__toolbar-actions">
             <button className="reading-view__toolbar-btn" title="Reply">
@@ -225,7 +336,11 @@ export function ContentPane() {
         </div>
 
         {post.permalink && (
-          <CommentThread key={post.permalink} permalink={post.permalink} />
+          <CommentThread
+            key={post.permalink}
+            permalink={post.permalink}
+            scrollRootRef={readingViewRef}
+          />
         )}
       </div>
     </section>
