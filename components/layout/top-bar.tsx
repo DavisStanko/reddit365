@@ -8,11 +8,14 @@ import {
   Image as ImageIcon,
   CircleUserRound,
   MessageSquare,
-  Video,
   CalendarCheck,
-  Lightbulb,
 } from "lucide-react";
 import { useSettings } from "@/components/settings-context";
+
+interface TopBarProps {
+  folderWidth?: number;
+  listWidth?: number;
+}
 
 function AppLauncherIcon() {
   return (
@@ -37,7 +40,7 @@ function AppLauncherIcon() {
   );
 }
 
-export function TopBar() {
+export function TopBar({ folderWidth = 220, listWidth = 340 }: TopBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { mediaEnabled, setMediaEnabled } = useSettings();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,15 +61,25 @@ export function TopBar() {
   }, [settingsOpen]);
 
   return (
-    <header className="top-bar" role="banner">
+    <header className="top-bar" role="banner" style={{ position: "relative" }}>
       <div className="top-bar__main">
-        <button className="top-bar__launcher" aria-label="App launcher">
-          <AppLauncherIcon />
-        </button>
+        <div className="top-bar__left">
+          <button className="top-bar__launcher" aria-label="App launcher">
+            <AppLauncherIcon />
+          </button>
 
-        <span className="top-bar__wordmark">Outlook</span>
+          <span className="top-bar__wordmark">Outlook</span>
+        </div>
 
-        <div className="top-bar__search">
+        <div 
+          className="top-bar__search"
+          style={{
+            position: "absolute",
+            left: `${48 + folderWidth + 4}px`, /* IconRail + FolderPane + ResizeHandle */
+            width: `${listWidth}px`,
+            maxWidth: "none"
+          }}
+        >
           <Search size={15} className="top-bar__search-icon" />
           <input
             type="text"
@@ -85,14 +98,6 @@ export function TopBar() {
             <MessageSquare size={16} />
           </button>
 
-          <button
-            className="top-bar__action"
-            title="Meet"
-            aria-label="Meet"
-          >
-            <Video size={16} />
-          </button>
-          
           <button
             className="top-bar__action"
             title="My Day"
@@ -149,14 +154,6 @@ export function TopBar() {
               </div>
             )}
           </div>
-          
-          <button
-            className="top-bar__action"
-            title="Tips"
-            aria-label="Tips"
-          >
-            <Lightbulb size={16} />
-          </button>
 
           <button
             className="top-bar__avatar"

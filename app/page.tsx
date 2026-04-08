@@ -41,8 +41,8 @@ export default function Home() {
     <AppProvider>
       <SettingsProvider>
         <div className="outlook-shell">
-          {/* Top Bar — spans full width */}
-          <TopBar />
+          {/* Top ribbon/nav bar */}
+          <TopBar folderWidth={folderWidth} listWidth={listWidth} />
 
           {/* Main body below the top bar */}
           <div className="outlook-shell__body">

@@ -114,10 +114,17 @@ body {
 .top-bar__main {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 48px;
   background: var(--header-bg);
   padding: 0 14px 0 12px;
+}
+
+.top-bar__left {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  flex: 1;
 }
 
 .top-bar__launcher {
@@ -153,30 +160,25 @@ body {
 .top-bar__search {
   display: flex;
   align-items: center;
-  flex: 1;
   width: 100%;
-  max-width: 560px;
+  max-width: 460px;
   height: 32px;
-  background: var(--search-bg);
+  background: #ffffff;
   border: none;
   border-radius: 4px;
   padding: 0 11px;
   gap: 9px;
-  transition:
-    background 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+  transition: box-shadow 150ms ease;
+  flex-shrink: 0;
 }
 
 .top-bar__search:focus-within {
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.18);
+  box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.4);
 }
 
 .top-bar__search-icon {
-  color: #ffffff;
+  color: var(--outlook-text-secondary);
   flex-shrink: 0;
-  transition: color 150ms ease;
 }
 
 .top-bar__search:focus-within .top-bar__search-icon {
@@ -189,29 +191,20 @@ body {
   border: none;
   outline: none;
   font-size: 13px;
-  color: #ffffff;
+  color: var(--outlook-text-primary);
   font-family: inherit;
 }
 
 .top-bar__search-input::placeholder {
-  color: #ffffff;
-  opacity: 0.9;
-}
-
-.top-bar__search:focus-within .top-bar__search-input {
-  color: var(--outlook-text-primary);
-}
-
-.top-bar__search:focus-within .top-bar__search-input::placeholder {
-  color: var(--outlook-text-tertiary);
+  color: var(--outlook-text-secondary);
 }
 
 .top-bar__right {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 192px;
   justify-content: flex-end;
+  flex: 1;
 }
 
 .top-bar__action {
