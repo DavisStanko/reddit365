@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
+import type { TopTimeRange } from "@/lib/reddit-api";
 import { Hash } from "lucide-react";
 
 export interface SubredditItem {
@@ -41,6 +42,10 @@ interface AppContextValue {
   sortMode: "hot" | "new" | "top";
   setSortMode: (mode: "hot" | "new" | "top") => void;
 
+  /** Time range used when sorting by top */
+  topTimeRange: TopTimeRange;
+  setTopTimeRange: (range: TopTimeRange) => void;
+
   subreddits: SubredditItem[];
   setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
   addSubreddit: (name: string) => void;
@@ -55,6 +60,8 @@ const AppContext = createContext<AppContextValue>({
   setSelectedPost: () => {},
   sortMode: "hot",
   setSortMode: () => {},
+  topTimeRange: "day",
+  setTopTimeRange: () => {},
   subreddits: INITIAL_SUBSCRIBED,
   setSubreddits: () => {},
   addSubreddit: () => {},
@@ -66,7 +73,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [sortMode, setSortMode] = useState<"hot" | "new" | "top">("hot");
-  const [subreddits, setSubreddits] = useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
+  const [topTimeRange, setTopTimeRange] = useState<TopTimeRange>("day");
+  const [subreddits, setSubreddits] =
+    useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
   // When switching feeds, clear the selected post
   const setActiveFeed = useCallback((feed: string) => {
@@ -74,27 +83,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedPost(null);
   }, []);
 
-  const addSubreddit = useCallback((name: string) => {
-    const id = name.toLowerCase().replace(/[^a-z0-9_]/g, "");
-    if (!id || subreddits.some(s => s.id === id)) return;
-    setSubreddits(prev => [
-      { id, label: `r/${name}`, icon: Hash },
-      ...prev
-    ]);
-  }, [subreddits]);
+  const addSubreddit = useCallback(
+    (name: string) => {
+      const id = name.toLowerCase().replace(/[^a-z0-9_]/g, "");
+      if (!id || subreddits.some((s) => s.id === id)) return;
+      setSubreddits((prev) => [
+        { id, label: `r/${name}`, icon: Hash },
+        ...prev,
+      ]);
+    },
+    [subreddits],
+  );
 
   const removeSubreddit = useCallback((id: string) => {
-    setSubreddits(prev => prev.filter(s => s.id !== id));
+    setSubreddits((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
-  const reorderSubreddits = useCallback((oldIndex: number, newIndex: number) => {
-    setSubreddits(prev => {
-      const result = Array.from(prev);
-      const [removed] = result.splice(oldIndex, 1);
-      result.splice(newIndex, 0, removed);
-      return result;
-    });
-  }, []);
+  const reorderSubreddits = useCallback(
+    (oldIndex: number, newIndex: number) => {
+      setSubreddits((prev) => {
+        const result = Array.from(prev);
+        const [removed] = result.splice(oldIndex, 1);
+        result.splice(newIndex, 0, removed);
+        return result;
+      });
+    },
+    [],
+  );
 
   return (
     <AppContext.Provider
@@ -105,6 +120,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedPost,
         sortMode,
         setSortMode,
+        topTimeRange,
+        setTopTimeRange,
         subreddits,
         setSubreddits,
         addSubreddit,

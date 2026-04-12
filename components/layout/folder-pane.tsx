@@ -8,16 +8,26 @@ import {
   TrendingUp,
   Star,
   Hash,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
-import { useAppContext } from "@/components/app-context";
-import type { SubredditListing } from "@/lib/reddit-api";
-
-interface SubredditItem {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  unreadCount?: number;
-}
+import { useAppContext, SubredditItem } from "@/components/app-context";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const FAVORITES: SubredditItem[] = [
   { id: "all", label: "r/all", icon: Globe },
@@ -25,41 +35,75 @@ const FAVORITES: SubredditItem[] = [
   { id: "frontpage", label: "Front Page", icon: Star },
 ];
 
-const SUBSCRIBED: SubredditItem[] = [
-  { id: "askreddit", label: "r/AskReddit", icon: Hash, unreadCount: 42 },
-  { id: "worldnews", label: "r/worldnews", icon: Hash, unreadCount: 18 },
-  { id: "programming", label: "r/programming", icon: Hash, unreadCount: 7 },
-  { id: "technology", label: "r/technology", icon: Hash },
-  { id: "science", label: "r/science", icon: Hash },
-  { id: "gaming", label: "r/gaming", icon: Hash },
-  { id: "movies", label: "r/movies", icon: Hash },
-  { id: "music", label: "r/music", icon: Hash },
-];
+function SortableFolderItem({
+  item,
+  isActive,
+  onSelect,
+  onRemove,
+}: {
+  item: SubredditItem;
+  isActive: boolean;
+  onSelect: (id: string) => void;
+  onRemove?: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.id });
 
-const INITIAL_SUBSCRIBED = SUBSCRIBED;
-
-function toSubredditItem(item: SubredditListing): SubredditItem {
-  return {
-    id: item.id,
-    label: item.label,
-    icon: Hash,
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
-}
 
-function mergeSubreddits(
-  current: SubredditItem[],
-  nextItems: SubredditItem[],
-): SubredditItem[] {
-  const seen = new Set(current.map((item) => item.id));
-  const merged = [...current];
+  const Icon = item.icon;
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  for (const item of nextItems) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    merged.push(item);
-  }
-
-  return merged;
+  return (
+    <li ref={setNodeRef} style={style} className="folder-item-wrapper">
+      <div
+        className={`folder-item ${isActive ? "folder-item--active" : ""}`}
+        onClick={() => onSelect(item.id)}
+        aria-current={isActive ? "page" : undefined}
+        {...attributes}
+        {...listeners}
+      >
+        <Icon size={16} className="folder-item__icon" />
+        <span className="folder-item__label">{item.label}</span>
+        {item.unreadCount && (
+          <span className="folder-item__badge">{item.unreadCount}</span>
+        )}
+        {onRemove && (
+          <div
+            className="folder-item__more"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen(!menuOpen);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <MoreVertical size={14} className="folder-item__more-icon" />
+            {menuOpen && (
+              <div className="folder-item__menu">
+                <button
+                  className="folder-item__menu-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                  }}
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </li>
+  );
 }
 
 interface FolderGroupProps {
@@ -67,7 +111,9 @@ interface FolderGroupProps {
   items: SubredditItem[];
   activeId: string;
   onSelect: (id: string) => void;
+  onRemove?: (id: string) => void;
   defaultExpanded?: boolean;
+  sortable?: boolean;
 }
 
 function FolderGroup({
@@ -75,9 +121,21 @@ function FolderGroup({
   items,
   activeId,
   onSelect,
+  onRemove,
   defaultExpanded = true,
+  sortable = false,
 }: FolderGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  const listContent = items.map((item) => (
+    <SortableFolderItem
+      key={item.id}
+      item={item}
+      isActive={activeId === item.id}
+      onSelect={onSelect}
+      onRemove={onRemove}
+    />
+  ));
 
   return (
     <div className="folder-group">
@@ -95,27 +153,13 @@ function FolderGroup({
       </button>
       {expanded && (
         <ul className="folder-group__list">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeId === item.id;
-            return (
-              <li key={item.id}>
-                <button
-                  className={`folder-item ${isActive ? "folder-item--active" : ""}`}
-                  onClick={() => onSelect(item.id)}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <Icon size={16} className="folder-item__icon" />
-                  <span className="folder-item__label">{item.label}</span>
-                  {item.unreadCount && (
-                    <span className="folder-item__badge">
-                      {item.unreadCount}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
+          {sortable ? (
+            <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              {listContent}
+            </SortableContext>
+          ) : (
+            listContent
+          )}
         </ul>
       )}
     </div>
@@ -123,99 +167,41 @@ function FolderGroup({
 }
 
 export function FolderPane() {
-  const { activeFeed, setActiveFeed } = useAppContext();
-  const [subreddits, setSubreddits] =
-    useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
-  const [loading, setLoading] = useState(false);
+  const { activeFeed, setActiveFeed, subreddits, removeSubreddit, reorderSubreddits } = useAppContext();
 
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadingRef = useRef(false);
-  const afterRef = useRef<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-  const loadSubreddits = useCallback(async (afterToken: string | null) => {
-    if (loadingRef.current) return;
-
-    loadingRef.current = true;
-    setLoading(true);
-
-    try {
-      const params = new URLSearchParams();
-      if (afterToken) params.set("after", afterToken);
-
-      const response = await fetch(`/api/subreddits?${params.toString()}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = (await response.json()) as {
-        subreddits?: SubredditListing[];
-        after?: string | null;
-      };
-
-      const nextItems = (data.subreddits ?? []).map(toSubredditItem);
-      afterRef.current = data.after ?? null;
-      setSubreddits((current) => mergeSubreddits(current, nextItems));
-    } catch (error) {
-      console.error("[FolderPane]", error);
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = subreddits.findIndex((i) => i.id === active.id);
+      const newIndex = subreddits.findIndex((i) => i.id === over.id);
+      reorderSubreddits(oldIndex, newIndex);
     }
-  }, []);
-
-  useEffect(() => {
-    void Promise.resolve().then(() => {
-      void loadSubreddits(null);
-    });
-  }, [loadSubreddits]);
-
-  useEffect(() => {
-    observerRef.current?.disconnect();
-
-    const root = contentRef.current;
-    if (!root) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          !loadingRef.current &&
-          afterRef.current
-        ) {
-          void loadSubreddits(afterRef.current);
-        }
-      },
-      { root, rootMargin: "200px" },
-    );
-
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
-    }
-
-    return () => observerRef.current?.disconnect();
-  }, [loadSubreddits]);
+  };
 
   return (
     <aside className="folder-pane" aria-label="Subreddit folders">
-      <div className="folder-pane__content" ref={contentRef}>
+      <div className="folder-pane__content">
         <FolderGroup
           title="Favorites"
           items={FAVORITES}
           activeId={activeFeed}
           onSelect={setActiveFeed}
         />
-        <FolderGroup
-          title="Subscriptions"
-          items={subreddits}
-          activeId={activeFeed}
-          onSelect={setActiveFeed}
-        />
-        <div
-          ref={sentinelRef}
-          className="folder-pane__sentinel"
-          aria-hidden="true"
-        />
-        {loading && <div className="folder-pane__loading" aria-hidden="true" />}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <FolderGroup
+            title="Subscriptions"
+            items={subreddits}
+            activeId={activeFeed}
+            onSelect={setActiveFeed}
+            onRemove={removeSubreddit}
+            sortable
+          />
+        </DndContext>
       </div>
     </aside>
   );

@@ -71,6 +71,18 @@ const FALLBACK_AFTER_PREFIX = "mock:";
 const COMMENT_PAGE_SIZE = 5;
 const COMMENT_CACHE_TTL_MS = 5 * 60 * 1000;
 
+export type SortMode = "hot" | "new" | "top";
+export type TopTimeRange = "hour" | "day" | "week" | "month" | "year" | "all";
+
+const TOP_TIME_RANGE_VALUES: TopTimeRange[] = [
+  "hour",
+  "day",
+  "week",
+  "month",
+  "year",
+  "all",
+];
+
 const COMMENT_CACHE = new Map<
   string,
   { expiresAt: number; comments: RedditCommentPageItem[] }
@@ -91,6 +103,93 @@ function unescapeRedditUrl(url: string): string {
 
 function looksLikeImageUrl(url?: string): boolean {
   return !!url && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+}
+
+function parseCompactNumber(value: string): number {
+  const normalized = value.trim().toLowerCase().replace(/,/g, "");
+  const match = normalized.match(/^(\d+(?:\.\d+)?)([km])?$/);
+
+  if (!match) return 0;
+
+  const amount = Number.parseFloat(match[1]);
+  const suffix = match[2];
+
+  if (suffix === "k") return amount * 1000;
+  if (suffix === "m") return amount * 1000000;
+  return amount;
+}
+
+function parseRelativeAgeMinutes(value: string): number | null {
+  const match = value
+    .trim()
+    .toLowerCase()
+    .match(/^(\d+(?:\.\d+)?)(m|h|d)$/);
+
+  if (!match) return null;
+
+  const amount = Number.parseFloat(match[1]);
+  const unit = match[2];
+
+  if (unit === "m") return amount;
+  if (unit === "h") return amount * 60;
+  return amount * 60 * 24;
+}
+
+function getTopTimeWindowMinutes(timeRange: TopTimeRange): number | null {
+  switch (timeRange) {
+    case "hour":
+      return 60;
+    case "day":
+      return 60 * 24;
+    case "week":
+      return 60 * 24 * 7;
+    case "month":
+      return 60 * 24 * 30;
+    case "year":
+      return 60 * 24 * 365;
+    case "all":
+      return null;
+  }
+}
+
+function rankFallbackPost(
+  post: Post,
+  sort: SortMode,
+  timeRange: TopTimeRange,
+): number {
+  const score = parseCompactNumber(post.score);
+  const ageMinutes = parseRelativeAgeMinutes(post.time);
+  const ageHours = ageMinutes === null ? 0 : ageMinutes / 60;
+
+  if (sort === "new") {
+    return -(ageMinutes ?? Number.POSITIVE_INFINITY);
+  }
+
+  if (sort === "top") {
+    const windowMinutes = getTopTimeWindowMinutes(timeRange);
+    const recencyBoost =
+      windowMinutes && ageMinutes !== null
+        ? Math.max(0, 1 - ageMinutes / windowMinutes)
+        : 0;
+
+    return score * (1 + recencyBoost * 0.2) + recencyBoost * 100;
+  }
+
+  return score / Math.pow(ageHours + 2, 1.25);
+}
+
+function sortFallbackPosts(
+  posts: Post[],
+  sort: SortMode,
+  timeRange: TopTimeRange,
+): Post[] {
+  return [...posts].sort((left, right) => {
+    const rightRank = rankFallbackPost(right, sort, timeRange);
+    const leftRank = rankFallbackPost(left, sort, timeRange);
+
+    if (rightRank !== leftRank) return rightRank - leftRank;
+    return parseCompactNumber(right.score) - parseCompactNumber(left.score);
+  });
 }
 
 function getPostMedia(
@@ -333,7 +432,7 @@ const FALLBACK_SUBREDDITS: SubredditListing[] = [
 ];
 
 /** Map a subreddit id from our folder pane to a Reddit API path */
-function subToPath(sub: string, sort: string): string {
+function subToPath(sub: string, sort: SortMode): string {
   const sortPath = sort === "new" || sort === "top" ? `/${sort}` : "";
   switch (sub) {
     case "frontpage":
@@ -394,6 +493,8 @@ async function buildFallbackPosts(
   sub: string,
   after: string | null | undefined,
   limit: number,
+  sort: SortMode,
+  timeRange: TopTimeRange,
 ): Promise<PostsResponse> {
   const { SAMPLE_POSTS } = await import("./sample-posts");
 
@@ -421,11 +522,29 @@ async function buildFallbackPosts(
           },
         ];
 
+  const rankedPosts =
+    sort === "top" && timeRange !== "all"
+      ? basePosts.filter((post) => {
+          const ageMinutes = parseRelativeAgeMinutes(post.time);
+          const windowMinutes = getTopTimeWindowMinutes(timeRange);
+
+          return ageMinutes === null || windowMinutes === null
+            ? true
+            : ageMinutes <= windowMinutes;
+        })
+      : basePosts;
+
+  const sortedBase = sortFallbackPosts(
+    rankedPosts.length > 0 ? rankedPosts : basePosts,
+    sort,
+    timeRange,
+  );
+
   const offset = parseFallbackOffset(after);
   const posts = Array.from({ length: Math.max(limit, 1) }, (_, index) => {
     const globalIndex = offset + index;
-    const source = basePosts[globalIndex % basePosts.length];
-    const cycle = Math.floor(globalIndex / basePosts.length);
+    const source = sortedBase[globalIndex % sortedBase.length];
+    const cycle = Math.floor(globalIndex / sortedBase.length);
 
     return {
       ...source,
@@ -567,13 +686,20 @@ async function loadCommentTree(
 /** Fetch posts from Reddit's public JSON API (server-side use) */
 export async function fetchRedditPosts(
   sub: string,
-  sort = "hot",
+  sort: SortMode = "hot",
   after?: string | null,
   limit = 25,
+  timeRange: TopTimeRange = "day",
 ): Promise<PostsResponse> {
   const path = subToPath(sub, sort);
   const params = new URLSearchParams({ limit: String(limit), raw_json: "1" });
   if (after) params.set("after", after);
+  if (sort === "top") {
+    params.set(
+      "t",
+      TOP_TIME_RANGE_VALUES.includes(timeRange) ? timeRange : "day",
+    );
+  }
 
   const url = `https://www.reddit.com${path}?${params.toString()}`;
 
@@ -589,7 +715,7 @@ export async function fetchRedditPosts(
     console.warn(
       `Reddit API error: ${res.status} ${res.statusText}. Falling back to sample posts.`,
     );
-    return buildFallbackPosts(sub, after, limit);
+    return buildFallbackPosts(sub, after, limit, sort, timeRange);
   }
 
   const json = (await res.json()) as {
