@@ -29,10 +29,18 @@ export function PostList() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [after, setAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  import type { TopTimeRange } from "@/lib/reddit-api";
   const [error, setError] = useState<string | null>(null);
 
-  // Abort controller ref so we can cancel stale requests when feed changes
-  const abortRef = useRef<AbortController | null>(null);
+    const {
+      activeFeed,
+      selectedPost,
+      setSelectedPost,
+      sortMode,
+      setSortMode,
+      topTimeRange,
+      setTopTimeRange,
+    } = useAppContext();
 
   // Track the last feed+sort we loaded so the IntersectionObserver
   // doesn't re-fetch on mount after the feed-change effect already did it
@@ -57,6 +65,7 @@ export function PostList() {
 
       // Cancel any in-flight request
       abortRef.current?.abort();
+        timeRange: TopTimeRange,
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -75,6 +84,9 @@ export function PostList() {
 
         const data = await res.json();
         const newPosts: Post[] = data.posts || [];
+          if (sort === "top") {
+            params.set("timeRange", timeRange);
+          }
         const nextAfter: string | null = data.after || null;
 
         afterRef.current = nextAfter;
@@ -102,7 +114,7 @@ export function PostList() {
     const key = `${activeFeed}::${sortMode}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
-
+      [doFetch],
     abortRef.current?.abort();
     setPosts([]);
     setAfter(null);
@@ -118,7 +130,7 @@ export function PostList() {
   useEffect(() => {
     observerRef.current?.disconnect();
 
-    observerRef.current = new IntersectionObserver(
+        void doFetch(activeFeed, sortMode, null, false, topTimeRange);
       (entries) => {
         if (
           entries[0].isIntersecting &&
@@ -133,7 +145,7 @@ export function PostList() {
 
     if (sentinelRef.current) {
       observerRef.current.observe(sentinelRef.current);
-    }
+            doFetch(activeFeed, sortMode, afterRef.current, true, topTimeRange);
 
     return () => observerRef.current?.disconnect();
   }, [activeFeed, sortMode, doFetch]);
@@ -159,6 +171,7 @@ export function PostList() {
         >
           {(["hot", "new", "top"] as const).map((mode) => (
             <button
+          <div className="post-list__header-main">
               key={mode}
               role="tab"
               aria-selected={sortMode === mode}
@@ -179,6 +192,32 @@ export function PostList() {
           <button
             className="post-list__header-btn"
             type="button"
+            {sortMode === "top" && (
+              <div
+                className="post-list__timeline"
+                role="radiogroup"
+                aria-label="Top timeline"
+              >
+                {(["hour", "day", "week", "month", "year", "all"] as const).map(
+                  (range) => (
+                    <button
+                      key={range}
+                      type="button"
+                      role="radio"
+                      aria-checked={topTimeRange === range}
+                      className={`post-list__timeline-item${
+                        topTimeRange === range
+                          ? " post-list__timeline-item--active"
+                          : ""
+                      }`}
+                      onClick={() => setTopTimeRange(range)}
+                    >
+                      {range[0].toUpperCase() + range.slice(1)}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
             aria-label="Filter"
           >
             <Filter size={14} />
