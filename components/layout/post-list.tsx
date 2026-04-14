@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Filter, SortAsc, MoreHorizontal } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import type { Post } from "@/lib/sample-posts";
+import type { TopTimeRange } from "@/lib/reddit-api";
 
 const FEEDS: Record<string, { sub?: string; empty?: boolean }> = {
   frontpage: { sub: "frontpage" },
@@ -23,24 +24,23 @@ const FEEDS: Record<string, { sub?: string; empty?: boolean }> = {
 // Local API route handles data mapping
 
 export function PostList() {
-  const { activeFeed, selectedPost, setSelectedPost, sortMode, setSortMode } =
-    useAppContext();
+  const {
+    activeFeed,
+    selectedPost,
+    setSelectedPost,
+    sortMode,
+    setSortMode,
+    topTimeRange,
+    setTopTimeRange,
+  } = useAppContext();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [after, setAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  import type { TopTimeRange } from "@/lib/reddit-api";
   const [error, setError] = useState<string | null>(null);
 
-    const {
-      activeFeed,
-      selectedPost,
-      setSelectedPost,
-      sortMode,
-      setSortMode,
-      topTimeRange,
-      setTopTimeRange,
-    } = useAppContext();
+  // Abort controller ref so we can cancel stale requests when feed changes
+  const abortRef = useRef<AbortController | null>(null);
 
   // Track the last feed+sort we loaded so the IntersectionObserver
   // doesn't re-fetch on mount after the feed-change effect already did it
@@ -57,6 +57,7 @@ export function PostList() {
       sort: string,
       afterToken: string | null,
       append: boolean,
+      timeRange?: string,
     ) => {
       if (loadingRef.current) return;
       loadingRef.current = true;
@@ -65,7 +66,6 @@ export function PostList() {
 
       // Cancel any in-flight request
       abortRef.current?.abort();
-        timeRange: TopTimeRange,
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -76,6 +76,9 @@ export function PostList() {
           sub: feedConfig.sub ?? "all",
           sort,
         });
+        if (sort === "top" && timeRange) {
+          params.set("t", timeRange);
+        }
         if (afterToken) params.set("after", afterToken);
         const url = `/api/posts?${params.toString()}`;
 
@@ -84,9 +87,6 @@ export function PostList() {
 
         const data = await res.json();
         const newPosts: Post[] = data.posts || [];
-          if (sort === "top") {
-            params.set("timeRange", timeRange);
-          }
         const nextAfter: string | null = data.after || null;
 
         afterRef.current = nextAfter;
@@ -111,10 +111,10 @@ export function PostList() {
 
   // When feed or sort changes → reset and fetch first page
   useEffect(() => {
-    const key = `${activeFeed}::${sortMode}`;
+    const key = `${activeFeed}::${sortMode}::${sortMode === "top" ? topTimeRange : ""}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
-      [doFetch],
+
     abortRef.current?.abort();
     setPosts([]);
     setAfter(null);
@@ -122,22 +122,22 @@ export function PostList() {
     setError(null);
 
     void Promise.resolve().then(() => {
-      void doFetch(activeFeed, sortMode, null, false);
+      void doFetch(activeFeed, sortMode, null, false, topTimeRange);
     });
-  }, [activeFeed, sortMode, doFetch]);
+  }, [activeFeed, sortMode, topTimeRange, doFetch]);
 
   // Infinite scroll: watch sentinel
   useEffect(() => {
     observerRef.current?.disconnect();
 
-        void doFetch(activeFeed, sortMode, null, false, topTimeRange);
+    observerRef.current = new IntersectionObserver(
       (entries) => {
         if (
           entries[0].isIntersecting &&
           !loadingRef.current &&
           afterRef.current
         ) {
-          doFetch(activeFeed, sortMode, afterRef.current, true);
+          doFetch(activeFeed, sortMode, afterRef.current, true, topTimeRange);
         }
       },
       { root: listRef.current, rootMargin: "200px" },
@@ -145,10 +145,10 @@ export function PostList() {
 
     if (sentinelRef.current) {
       observerRef.current.observe(sentinelRef.current);
-            doFetch(activeFeed, sortMode, afterRef.current, true, topTimeRange);
+    }
 
     return () => observerRef.current?.disconnect();
-  }, [activeFeed, sortMode, doFetch]);
+  }, [activeFeed, sortMode, topTimeRange, doFetch]);
 
   // Human-readable feed name
   const feedLabel =
@@ -164,25 +164,53 @@ export function PostList() {
     <div className="post-list">
       <div className="post-list__header">
         <div className="post-list__feed-name">{feedLabel}</div>
-        <div
-          className="post-list__tabs"
-          role="tablist"
-          aria-label="Post sort options"
-        >
-          {(["hot", "new", "top"] as const).map((mode) => (
-            <button
-          <div className="post-list__header-main">
-              key={mode}
-              role="tab"
-              aria-selected={sortMode === mode}
-              className={`post-list__tab${
-                sortMode === mode ? " post-list__tab--active" : ""
-              }`}
-              onClick={() => setSortMode(mode)}
+        <div className="post-list__header-main">
+          <div
+            className="post-list__tabs"
+            role="tablist"
+            aria-label="Post sort options"
+          >
+            {(["hot", "new", "top"] as const).map((mode) => (
+              <button
+                key={mode}
+                role="tab"
+                aria-selected={sortMode === mode}
+                className={`post-list__tab${
+                  sortMode === mode ? " post-list__tab--active" : ""
+                }`}
+                onClick={() => setSortMode(mode)}
+              >
+                {mode[0].toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {sortMode === "top" && (
+            <div
+              className="post-list__timeline"
+              role="radiogroup"
+              aria-label="Top timeline"
             >
-              {mode[0].toUpperCase() + mode.slice(1)}
-            </button>
-          ))}
+              {(["hour", "day", "week", "month", "year", "all"] as const).map(
+                (range) => (
+                  <button
+                    key={range}
+                    type="button"
+                    role="radio"
+                    aria-checked={topTimeRange === range}
+                    className={`post-list__timeline-item${
+                      topTimeRange === range
+                        ? " post-list__timeline-item--active"
+                        : ""
+                    }`}
+                    onClick={() => setTopTimeRange(range as TopTimeRange)}
+                  >
+                    {range[0].toUpperCase() + range.slice(1)}
+                  </button>
+                ),
+              )}
+            </div>
+          )}
         </div>
 
         <div
@@ -192,32 +220,6 @@ export function PostList() {
           <button
             className="post-list__header-btn"
             type="button"
-            {sortMode === "top" && (
-              <div
-                className="post-list__timeline"
-                role="radiogroup"
-                aria-label="Top timeline"
-              >
-                {(["hour", "day", "week", "month", "year", "all"] as const).map(
-                  (range) => (
-                    <button
-                      key={range}
-                      type="button"
-                      role="radio"
-                      aria-checked={topTimeRange === range}
-                      className={`post-list__timeline-item${
-                        topTimeRange === range
-                          ? " post-list__timeline-item--active"
-                          : ""
-                      }`}
-                      onClick={() => setTopTimeRange(range)}
-                    >
-                      {range[0].toUpperCase() + range.slice(1)}
-                    </button>
-                  ),
-                )}
-              </div>
-            )}
             aria-label="Filter"
           >
             <Filter size={14} />
