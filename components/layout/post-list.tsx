@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Filter, SortAsc, MoreHorizontal } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import type { Post } from "@/lib/sample-posts";
-import type { TopTimeRange } from "@/lib/reddit-api";
 
 const FEEDS: Record<string, { sub?: string; empty?: boolean }> = {
   frontpage: { sub: "frontpage" },
@@ -30,8 +29,6 @@ export function PostList() {
     setSelectedPost,
     sortMode,
     setSortMode,
-    topTimeRange,
-    setTopTimeRange,
   } = useAppContext();
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -57,7 +54,6 @@ export function PostList() {
       sort: string,
       afterToken: string | null,
       append: boolean,
-      timeRange?: string,
     ) => {
       if (loadingRef.current) return;
       loadingRef.current = true;
@@ -76,8 +72,8 @@ export function PostList() {
           sub: feedConfig.sub ?? "all",
           sort,
         });
-        if (sort === "top" && timeRange) {
-          params.set("t", timeRange);
+        if (sort === "top") {
+          params.set("t", "all");
         }
         if (afterToken) params.set("after", afterToken);
         const url = `/api/posts?${params.toString()}`;
@@ -111,7 +107,7 @@ export function PostList() {
 
   // When feed or sort changes → reset and fetch first page
   useEffect(() => {
-    const key = `${activeFeed}::${sortMode}::${sortMode === "top" ? topTimeRange : ""}`;
+    const key = `${activeFeed}::${sortMode}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
 
@@ -122,9 +118,9 @@ export function PostList() {
     setError(null);
 
     void Promise.resolve().then(() => {
-      void doFetch(activeFeed, sortMode, null, false, topTimeRange);
+      void doFetch(activeFeed, sortMode, null, false);
     });
-  }, [activeFeed, sortMode, topTimeRange, doFetch]);
+  }, [activeFeed, sortMode, doFetch]);
 
   // Infinite scroll: watch sentinel
   useEffect(() => {
@@ -137,7 +133,7 @@ export function PostList() {
           !loadingRef.current &&
           afterRef.current
         ) {
-          doFetch(activeFeed, sortMode, afterRef.current, true, topTimeRange);
+          doFetch(activeFeed, sortMode, afterRef.current, true);
         }
       },
       { root: listRef.current, rootMargin: "200px" },
@@ -148,7 +144,7 @@ export function PostList() {
     }
 
     return () => observerRef.current?.disconnect();
-  }, [activeFeed, sortMode, topTimeRange, doFetch]);
+  }, [activeFeed, sortMode, doFetch]);
 
   // Human-readable feed name
   const feedLabel =
@@ -184,33 +180,6 @@ export function PostList() {
               </button>
             ))}
           </div>
-
-          {sortMode === "top" && (
-            <div
-              className="post-list__timeline"
-              role="radiogroup"
-              aria-label="Top timeline"
-            >
-              {(["hour", "day", "week", "month", "year", "all"] as const).map(
-                (range) => (
-                  <button
-                    key={range}
-                    type="button"
-                    role="radio"
-                    aria-checked={topTimeRange === range}
-                    className={`post-list__timeline-item${
-                      topTimeRange === range
-                        ? " post-list__timeline-item--active"
-                        : ""
-                    }`}
-                    onClick={() => setTopTimeRange(range as TopTimeRange)}
-                  >
-                    {range[0].toUpperCase() + range.slice(1)}
-                  </button>
-                ),
-              )}
-            </div>
-          )}
         </div>
 
         <div

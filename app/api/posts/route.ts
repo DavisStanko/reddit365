@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const sub = searchParams.get("sub") ?? "all";
   const after = searchParams.get("after") ?? undefined;
   const sort = searchParams.get("sort") ?? "hot";
-  const timeRange = searchParams.get("timeRange") ?? "day";
+  const timeRange = searchParams.get("timeRange") ?? searchParams.get("t") ?? "day";
 
   try {
     const data = await fetchRedditPosts(

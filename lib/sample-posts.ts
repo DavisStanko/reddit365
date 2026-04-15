@@ -125,8 +125,8 @@ export const SAMPLE_POSTS: Post[] = [
       "The James Webb Space Telescope just captured the deepest infrared image of the universe ever taken",
     subreddit: "r/science",
     author: "astro_news",
-    time: "3h",
-    score: "24.5k",
+    time: "15h",
+    score: "45.5k",
     comments: 1847,
     body: `NASA has released the deepest and sharpest infrared image of the distant universe to date, captured by the James Webb Space Telescope. Known as Webb's First Deep Field, the image shows the galaxy cluster SMACS 0723 as it appeared 4.6 billion years ago.
 
@@ -144,7 +144,7 @@ The telescope's ability to peer back in time is giving astronomers unprecedented
       "What's a skill that's relatively easy to learn but makes you seem much more competent?",
     subreddit: "r/AskReddit",
     author: "curious_mind",
-    time: "5h",
+    time: "4h",
     score: "18.2k",
     comments: 3421,
     body: `I'll start with mine: learning to type properly. I switched from hunt-and-peck to touch typing a few years ago and it's been a game changer. Not only do I actually work faster, but people always seem impressed when they see someone typing without looking at the keyboard.
@@ -168,8 +168,8 @@ What are yours?`,
       "TIL that honey never spoils. Archaeologists have found 3000 year old honey in Egyptian tombs that was still edible.",
     subreddit: "r/todayilearned",
     author: "history_buff",
-    time: "7h",
-    score: "12.1k",
+    time: "20h",
+    score: "65.1k",
     comments: 892,
     body: `Honey is the only natural food that is made without destroying any kind of life. It's also the only food that never spoils.
 
@@ -189,8 +189,8 @@ Source: National Geographic, Smithsonian Magazine`,
       "After 6 months of learning, I finally deployed my first full-stack app!",
     subreddit: "r/programming",
     author: "newdev2024",
-    time: "2h",
-    score: "8.4k",
+    time: "10m",
+    score: "1.2k",
     comments: 567,
     body: `I just want to share my excitement with this community. Six months ago I couldn't write a single line of code. Today, I deployed my first full-stack application!
 
@@ -220,8 +220,8 @@ Happy to answer any questions from fellow beginners!`,
       "The new Battery Technology that could charge your phone in 5 minutes",
     subreddit: "r/technology",
     author: "tech_insider",
-    time: "4h",
-    score: "6.7k",
+    time: "2h",
+    score: "14.7k",
     comments: 423,
     body: `Researchers at a major university have developed a new type of lithium-ion battery that can charge to 80% capacity in just 5 minutes, potentially revolutionizing how we use electronic devices.
 
@@ -245,8 +245,8 @@ However, the big caveat is that you'd need a much more powerful charger — stan
       "My cat decided that my keyboard is the perfect bed. Every. Single. Day.",
     subreddit: "r/funny",
     author: "cat_person_99",
-    time: "1h",
-    score: "31.2k",
+    time: "6h",
+    score: "22.2k",
     comments: 2103,
     body: `I work from home and my cat has decided that out of all the comfortable surfaces in this house — the couch, the bed, the cat tree I spent $200 on — my keyboard is the ideal napping spot.
 
