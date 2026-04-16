@@ -744,9 +744,9 @@ export async function fetchRedditPosts(
 
       return {
         id: idx, // use index as numeric id; full id in name field
-        title: d.title,
+        title: d.title ?? "Untitled",
         subreddit,
-        author: d.author,
+        author: d.author ?? "unknown",
         time: d.created_utc ? formatAge(d.created_utc) : "0m",
         score: d.score !== undefined ? formatScore(d.score) : "0",
         comments: d.num_comments ?? 0,
