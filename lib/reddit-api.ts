@@ -662,10 +662,10 @@ async function loadCommentTree(
     }
 
     return {
-      id: d.id,
-      author: d.author,
-      time: formatAge(d.created_utc),
-      score: formatScore(d.score),
+      id: d.id ?? "unknown",
+      author: d.author ?? "unknown",
+      time: d.created_utc ? formatAge(d.created_utc) : "0m",
+      score: d.score !== undefined ? formatScore(d.score) : "0",
       body: d.body,
       replies: replies.length > 0 ? replies : undefined,
     };
@@ -747,8 +747,8 @@ export async function fetchRedditPosts(
         title: d.title,
         subreddit,
         author: d.author,
-        time: formatAge(d.created_utc),
-        score: formatScore(d.score),
+        time: d.created_utc ? formatAge(d.created_utc) : "0m",
+        score: d.score !== undefined ? formatScore(d.score) : "0",
         comments: d.num_comments ?? 0,
         body,
         ...media,
