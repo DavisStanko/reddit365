@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Filter, SortAsc, MoreHorizontal } from "lucide-react";
+import { Filter, SortAsc, MoreHorizontal, RefreshCw } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import type { Post } from "@/lib/sample-posts";
 
@@ -32,9 +32,16 @@ export function PostList() {
   } = useAppContext();
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [newPostsQueue, setNewPostsQueue] = useState<Post[]>([]);
+  const [isPolling, setIsPolling] = useState(false);
   const [after, setAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const postsRef = useRef<Post[]>([]);
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
 
   // Abort controller ref so we can cancel stale requests when feed changes
   const abortRef = useRef<AbortController | null>(null);
@@ -47,6 +54,54 @@ export function PostList() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef(false);
   const afterRef = useRef<string | null>(null);
+
+  const pollForNewPosts = useCallback(
+    async (manual = false) => {
+      if (loadingRef.current && !manual) return;
+      if (!manual && document.visibilityState !== "visible") return;
+      
+      setIsPolling(true);
+      try {
+        const feedConfig = FEEDS[activeFeed] ?? { sub: activeFeed };
+        const params = new URLSearchParams({
+          sub: feedConfig.sub ?? "all",
+          sort: sortMode,
+        });
+        if (sortMode === "top") params.set("t", "all");
+
+        const url = `/api/posts?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Poll failed");
+
+        const data = await res.json();
+        const fetchedPosts: Post[] = data.posts || [];
+
+        setNewPostsQueue((currentQueue) => {
+          const knownTitles = new Set([
+            ...postsRef.current.map((p) => p.title),
+            ...currentQueue.map((p) => p.title),
+          ]);
+          const trulyNew = fetchedPosts.filter((p) => !knownTitles.has(p.title));
+          if (trulyNew.length > 0) {
+            return [...trulyNew, ...currentQueue];
+          }
+          return currentQueue;
+        });
+      } catch (e) {
+        console.error("[PostList Polling]", e);
+      } finally {
+        setIsPolling(false);
+      }
+    },
+    [activeFeed, sortMode]
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void pollForNewPosts(false);
+    }, 120_000); // 2 minutes
+    return () => clearInterval(interval);
+  }, [pollForNewPosts]);
 
   const doFetch = useCallback(
     async (
@@ -113,6 +168,7 @@ export function PostList() {
 
     abortRef.current?.abort();
     setPosts([]);
+    setNewPostsQueue([]);
     setAfter(null);
     afterRef.current = null;
     setError(null);
@@ -193,6 +249,15 @@ export function PostList() {
           <button
             className="post-list__header-btn"
             type="button"
+            aria-label="Refresh"
+            onClick={() => pollForNewPosts(true)}
+            title="Check for new posts"
+          >
+            <RefreshCw size={14} className={isPolling ? "post-list__icon-spin" : ""} />
+          </button>
+          <button
+            className="post-list__header-btn"
+            type="button"
             aria-label="Filter"
           >
             <Filter size={14} />
@@ -215,6 +280,19 @@ export function PostList() {
       </div>
 
       <div ref={listRef} className="post-list__items" role="list">
+        {newPostsQueue.length > 0 && (
+          <button
+            className="post-list__new-banner"
+            onClick={() => {
+              setPosts((prev) => [...newPostsQueue, ...prev]);
+              setNewPostsQueue([]);
+              listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            ↑ {newPostsQueue.length} new message{newPostsQueue.length === 1 ? "" : "s"}
+          </button>
+        )}
+
         {error && (
           <div className="post-list__error" role="alert">
             {error}
