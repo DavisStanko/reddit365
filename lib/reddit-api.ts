@@ -38,6 +38,7 @@ interface RedditSubredditNode {
 interface RedditPostNode {
   kind?: string;
   data: RedditPostData & {
+    name?: string;
     title?: string;
     subreddit?: string;
     author?: string;
@@ -50,13 +51,16 @@ interface RedditPostNode {
 }
 
 interface RedditCommentNode {
-  kind?: string;
+  kind?: "t1" | "more" | string;
   data: {
     id?: string;
+    name?: string;
     author?: string;
     created_utc?: number;
     score?: number;
     body?: string;
+    children?: string[];
+    depth?: number;
     replies?:
       | {
           data?: {
@@ -70,6 +74,7 @@ interface RedditCommentNode {
 const FALLBACK_AFTER_PREFIX = "mock:";
 const COMMENT_PAGE_SIZE = 5;
 const COMMENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const COMMENT_MORE_PAGE_SIZE = 20;
 
 export type SortMode = "hot" | "new" | "top";
 export type TopTimeRange = "hour" | "day" | "week" | "month" | "year" | "all";
@@ -83,10 +88,7 @@ const TOP_TIME_RANGE_VALUES: TopTimeRange[] = [
   "all",
 ];
 
-const COMMENT_CACHE = new Map<
-  string,
-  { expiresAt: number; comments: RedditCommentPageItem[] }
->();
+const COMMENT_CACHE = new Map<string, { expiresAt: number; page: RedditCommentPage }>();
 
 export interface RedditCommentPageItem extends RedditComment {
   depth: number;
@@ -541,21 +543,13 @@ async function buildFallbackPosts(
   );
 
   const offset = parseFallbackOffset(after);
-  const posts = Array.from({ length: Math.max(limit, 1) }, (_, index) => {
-    const globalIndex = offset + index;
-    const source = sortedBase[globalIndex % sortedBase.length];
-    const cycle = Math.floor(globalIndex / sortedBase.length);
-
-    return {
-      ...source,
-      id: 100000 + globalIndex,
-      author: cycle > 0 ? `${source.author}_${cycle}` : source.author,
-    };
-  });
+  const posts = sortedBase.slice(offset, offset + Math.max(limit, 1));
+  const nextOffset = offset + posts.length;
 
   return {
     posts,
-    after: `${FALLBACK_AFTER_PREFIX}${offset + posts.length}`,
+    after:
+      nextOffset < sortedBase.length ? `${FALLBACK_AFTER_PREFIX}${nextOffset}` : null,
   };
 }
 
@@ -585,16 +579,82 @@ function buildCommentPage(
   };
 }
 
-async function loadCommentTree(
-  permalink: string,
-): Promise<RedditCommentPageItem[]> {
-  const cached = COMMENT_CACHE.get(permalink);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.comments;
+function mapCommentNode(c: RedditCommentNode, depth = 0): RedditComment | null {
+  if (c.kind !== "t1") return null;
+  const d = c.data;
+  if (!d || !d.body) return null;
+
+  let replies: RedditComment[] = [];
+  if (typeof d.replies !== "string" && d.replies?.data?.children) {
+    replies = d.replies.data.children
+      .map((reply) => mapCommentNode(reply, depth + 1))
+      .filter(Boolean) as RedditComment[];
   }
 
+  return {
+    id: d.id ?? d.name ?? "unknown",
+    author: d.author ?? "unknown",
+    time: d.created_utc ? formatAge(d.created_utc) : "0m",
+    score: d.score !== undefined ? formatScore(d.score) : "0",
+    body: d.body,
+    replies: replies.length > 0 ? replies : undefined,
+  };
+}
+
+function collectMoreChildren(nodes: RedditCommentNode[]): string[] {
+  return nodes.flatMap((node) => {
+    if (node.kind === "more") {
+      return node.data.children ?? [];
+    }
+
+    const replies =
+      typeof node.data.replies !== "string"
+        ? (node.data.replies?.data?.children ?? [])
+        : [];
+
+    return collectMoreChildren(replies);
+  });
+}
+
+function buildMoreCursor(linkId: string | null, children: string[]): string | null {
+  if (!linkId || children.length === 0) return null;
+  return `more:${linkId}:${children.join(",")}`;
+}
+
+function parseMoreCursor(cursor?: string | null): {
+  linkId: string;
+  children: string[];
+} | null {
+  if (!cursor?.startsWith("more:")) return null;
+
+  const [, linkId, childList] = cursor.split(":");
+  const children = childList?.split(",").filter(Boolean) ?? [];
+
+  if (!linkId || children.length === 0) return null;
+  return { linkId, children };
+}
+
+async function fetchFallbackCommentPage(
+  permalink: string,
+  cursor: number,
+  limit: number,
+): Promise<RedditCommentPage> {
+  const { SAMPLE_COMMENTS } = await import("./sample-posts");
+  const fallbackComments = SAMPLE_COMMENTS[permalink] ?? [];
+  return buildCommentPage(flattenCommentTree(fallbackComments), cursor, limit);
+}
+
+async function loadInitialCommentPage(
+  permalink: string,
+  limit: number,
+): Promise<RedditCommentPage> {
   const path = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
-  const url = `https://www.reddit.com${path}.json?raw_json=1`;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    raw_json: "1",
+    sort: "confidence",
+  });
+  const url = `https://www.reddit.com${path}.json?${params.toString()}`;
 
   const res = await fetch(url, {
     headers: {
@@ -607,80 +667,104 @@ async function loadCommentTree(
     console.warn(
       `Reddit API error: ${res.status} ${res.statusText}. Falling back to sample comments.`,
     );
-    const { SAMPLE_COMMENTS } = await import("./sample-posts");
-    const fallbackComments = SAMPLE_COMMENTS[permalink] ?? [
-      {
-        id: "sample_comment_1",
-        author: "reddit_user",
-        time: "2h",
-        score: "42",
-        body: "This is a sample comment because Reddit API returned an error (likely 403 Forbidden).",
-        replies: [
-          {
-            id: "sample_comment_2",
-            author: "another_user",
-            time: "1h",
-            score: "12",
-            body: "This is a sample reply.",
-          },
-        ],
-      },
-    ];
-
-    const flattenedFallback = flattenCommentTree(fallbackComments);
-    COMMENT_CACHE.set(permalink, {
-      expiresAt: Date.now() + COMMENT_CACHE_TTL_MS,
-      comments: flattenedFallback,
-    });
-    return flattenedFallback;
+    return fetchFallbackCommentPage(permalink, 0, limit);
   }
 
   const json = (await res.json()) as unknown;
 
   if (!Array.isArray(json) || json.length < 2) {
-    COMMENT_CACHE.set(permalink, {
-      expiresAt: Date.now() + COMMENT_CACHE_TTL_MS,
-      comments: [],
-    });
-    return [];
+    return { comments: [], nextCursor: null };
   }
 
+  const linkId =
+    (json[0] as { data?: { children?: RedditPostNode[] } } | undefined)?.data
+      ?.children?.[0]?.data?.name ?? null;
   const commentsData =
     (json[1] as { data?: { children?: RedditCommentNode[] } } | undefined)?.data
       ?.children ?? [];
+  const moreChildren = collectMoreChildren(commentsData);
+  const mappedComments = commentsData
+    .map((comment) => mapCommentNode(comment))
+    .filter(Boolean) as RedditComment[];
 
-  function mapComment(c: RedditCommentNode): RedditComment | null {
-    if (c.kind !== "t1") return null;
-    const d = c.data;
-    if (!d || !d.body) return null;
+  return {
+    comments: flattenCommentTree(mappedComments),
+    nextCursor: buildMoreCursor(linkId, moreChildren),
+  };
+}
 
-    let replies: RedditComment[] = [];
-    if (typeof d.replies !== "string" && d.replies?.data?.children) {
-      replies = d.replies.data.children
-        .map(mapComment)
-        .filter(Boolean) as RedditComment[];
-    }
+async function loadMoreCommentPage(cursor: string): Promise<RedditCommentPage> {
+  const parsed = parseMoreCursor(cursor);
+  if (!parsed) return { comments: [], nextCursor: null };
 
-    return {
-      id: d.id ?? "unknown",
-      author: d.author ?? "unknown",
-      time: d.created_utc ? formatAge(d.created_utc) : "0m",
-      score: d.score !== undefined ? formatScore(d.score) : "0",
-      body: d.body,
-      replies: replies.length > 0 ? replies : undefined,
-    };
-  }
+  const pageChildren = parsed.children.slice(0, COMMENT_MORE_PAGE_SIZE);
+  const remainingChildren = parsed.children.slice(COMMENT_MORE_PAGE_SIZE);
+  const params = new URLSearchParams({
+    api_type: "json",
+    link_id: parsed.linkId,
+    children: pageChildren.join(","),
+    raw_json: "1",
+  });
+  const url = `https://www.reddit.com/api/morechildren.json?${params.toString()}`;
 
-  const flattened = flattenCommentTree(
-    commentsData.map(mapComment).filter(Boolean) as RedditComment[],
-  );
-
-  COMMENT_CACHE.set(permalink, {
-    expiresAt: Date.now() + COMMENT_CACHE_TTL_MS,
-    comments: flattened,
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
+    },
+    next: { revalidate: 60 },
   });
 
-  return flattened;
+  if (!res.ok) {
+    console.warn(
+      `Reddit API error: ${res.status} ${res.statusText}. Could not load more comments.`,
+    );
+    return { comments: [], nextCursor: null };
+  }
+
+  const json = (await res.json()) as {
+    json?: {
+      data?: {
+        things?: RedditCommentNode[];
+      };
+    };
+  };
+  const things = json.json?.data?.things ?? [];
+  const mappedComments = things
+    .map((comment) => mapCommentNode(comment))
+    .filter(Boolean) as RedditComment[];
+  const nestedMoreChildren = collectMoreChildren(things);
+
+  return {
+    comments: flattenCommentTree(mappedComments),
+    nextCursor: buildMoreCursor(parsed.linkId, [
+      ...remainingChildren,
+      ...nestedMoreChildren,
+    ]),
+  };
+}
+
+async function loadCommentPage(
+  permalink: string,
+  cursor: string | null | undefined,
+  limit: number,
+): Promise<RedditCommentPage> {
+  const cacheKey = `${permalink}::${cursor ?? "initial"}::${limit}`;
+  const cached = COMMENT_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.page;
+  }
+
+  const page =
+    cursor?.startsWith("more:")
+      ? await loadMoreCommentPage(cursor)
+      : await loadInitialCommentPage(permalink, limit);
+
+  COMMENT_CACHE.set(cacheKey, {
+    expiresAt: Date.now() + COMMENT_CACHE_TTL_MS,
+    page,
+  });
+
+  return page;
 }
 
 /** Fetch posts from Reddit's public JSON API (server-side use) */
@@ -690,6 +774,7 @@ export async function fetchRedditPosts(
   after?: string | null,
   limit = 25,
   timeRange: TopTimeRange = "day",
+  options?: { refresh?: boolean },
 ): Promise<PostsResponse> {
   const path = subToPath(sub, sort);
   const params = new URLSearchParams({ limit: String(limit), raw_json: "1" });
@@ -708,7 +793,9 @@ export async function fetchRedditPosts(
       // Reddit requires a descriptive User-Agent for API usage
       "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
     },
-    next: { revalidate: 60 }, // cache for 60s in Next.js data cache
+    ...(options?.refresh
+      ? { cache: "no-store" as const }
+      : { next: { revalidate: 60 } }), // cache for 60s in Next.js data cache
   });
 
   if (!res.ok) {
@@ -743,7 +830,7 @@ export async function fetchRedditPosts(
       const media = getPostMedia(d);
 
       return {
-        id: idx, // use index as numeric id; full id in name field
+        id: d.name ? parseInt(d.name.replace(/^t3_/, ""), 36) : idx,
         title: d.title ?? "Untitled",
         subreddit,
         author: d.author ?? "unknown",
@@ -812,10 +899,18 @@ export async function fetchRedditSubreddits(
 /** Fetch a paged slice of comments for a specific post permalink */
 export async function fetchRedditComments(
   permalink: string,
-  options?: { cursor?: number; limit?: number },
+  options?: { cursor?: string | null; limit?: number },
 ): Promise<RedditCommentPage> {
-  const comments = await loadCommentTree(permalink);
-  const cursor = options?.cursor ?? 0;
   const limit = options?.limit ?? COMMENT_PAGE_SIZE;
-  return buildCommentPage(comments, cursor, limit);
+  const fallbackCursor = options?.cursor ? Number.parseInt(options.cursor, 10) : 0;
+
+  if (options?.cursor && !options.cursor.startsWith("more:")) {
+    return fetchFallbackCommentPage(
+      permalink,
+      Number.isFinite(fallbackCursor) ? fallbackCursor : 0,
+      limit,
+    );
+  }
+
+  return loadCommentPage(permalink, options?.cursor, limit);
 }
