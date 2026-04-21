@@ -268,12 +268,18 @@ body {
   padding: 0 14px;
 }
 
+.ribbon__command-row-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px 12px;
+}
+
 .ribbon__command-row {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 44px;
-  margin: 0 12px 12px;
   padding: 4px 8px;
   background: #ffffff;
   border-radius: 4px;
@@ -281,6 +287,8 @@ body {
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 1px 2px rgba(0, 0, 0, 0.03);
   border: 1px solid rgba(0, 0, 0, 0.05);
+  flex: 1;
+  min-width: 0;
 }
 
 .ribbon__menu-button {
@@ -401,28 +409,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 120ms ease;
 }
 
-.ribbon__copilot-orb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 45deg,
-    #5b9cf5,
-    #9b6cff,
-    #f35b86,
-    #ffb347,
-    #5b9cf5
-  );
+.ribbon__copilot:hover {
+  background: #fdfdfd;
+}
+
+.ribbon__copilot-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ========================================================================
