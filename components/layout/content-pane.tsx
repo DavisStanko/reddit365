@@ -16,7 +16,6 @@ import {
   Award,
   MoreHorizontal,
 } from "lucide-react";
-import type { RedditComment } from "@/lib/sample-posts";
 import type { RedditCommentPageItem } from "@/lib/reddit-api";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
@@ -130,12 +129,16 @@ function CommentThread({
 
   useEffect(() => {
     requestIdRef.current += 1;
-    setComments([]);
-    setNextCursor(null);
-    setError(null);
-    void loadComments(null, true);
+    let active = true;
+
+    queueMicrotask(() => {
+      if (active) {
+        void loadComments(null, true);
+      }
+    });
 
     return () => {
+      active = false;
       requestIdRef.current += 1;
     };
   }, [loadComments, permalink]);
