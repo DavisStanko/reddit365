@@ -110,7 +110,9 @@ export function PostList() {
 
   const buildUrl = useCallback((feed: string, sort: string, t: string, afterToken: string | null) => {
     let basePath = "";
-    if (feed === "frontpage" || feed === "popular") {
+    if (feed === "frontpage") {
+      basePath = "";
+    } else if (feed === "popular") {
       basePath = "/r/popular";
     } else if (feed === "all") {
       basePath = "/r/all";
@@ -118,8 +120,14 @@ export function PostList() {
       basePath = `/r/${feed.replace(/^r\//, "")}`;
     }
 
-    // Default sort mode implies appending it to path
-    let url = `https://www.reddit.com${basePath}/${sort}.json?raw_json=1&limit=25`;
+    // Sort is part of the URL path: r/[subreddit]/[sort].json
+    let url = "";
+    if (basePath === "" && sort === "hot") {
+      url = `https://www.reddit.com/.json?raw_json=1&limit=25`;
+    } else {
+      url = `https://www.reddit.com${basePath}/${sort}.json?raw_json=1&limit=25`;
+    }
+
     if (sort === "top") {
       url += `&t=${t}`;
     }
