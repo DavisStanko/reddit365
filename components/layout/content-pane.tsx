@@ -125,17 +125,9 @@ function CommentThread({
   const loadingRef = useRef(false);
   const afterRef = useRef<string | null>(null);
 
-  // Reset comments when post changes
-  useEffect(() => {
-    setComments([]);
-    setCommentsAfter(null);
-    afterRef.current = null;
-    setError(null);
-  }, [post.id]);
-
   const loadComments = useCallback(
     async (cursor: string | null, append: boolean) => {
-      if (!post.permalink) return;
+      if (!post.id || !post.subreddit) return;
       if (loadingRef.current) return;
 
       const requestId = ++requestIdRef.current;
@@ -144,10 +136,8 @@ function CommentThread({
       setIsLoadingComments(true);
 
       try {
-        const urlPath = post.permalink.endsWith("/")
-          ? post.permalink.slice(0, -1)
-          : post.permalink;
-        let url = `https://www.reddit.com${urlPath}.json?raw_json=1&limit=25`;
+        const subredditPath = post.subreddit.startsWith("r/") ? post.subreddit : `r/${post.subreddit}`;
+        let url = `https://www.reddit.com/${subredditPath}/comments/${post.id}.json?raw_json=1&limit=25`;
         if (cursor) {
           url += `&after=${cursor}`;
         }
@@ -186,7 +176,7 @@ function CommentThread({
         setIsLoadingComments(false);
       }
     },
-    [post.permalink]
+    [post.id, post.subreddit]
   );
 
   useEffect(() => {

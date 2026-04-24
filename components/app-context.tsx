@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
@@ -28,7 +29,7 @@ const INITIAL_SUBSCRIBED: SubredditItem[] = [
   { id: "music", label: "r/music", icon: Hash },
 ];
 
-export type TopTimeRange = "hour" | "day" | "week" | "month" | "year" | "all";
+
 
 interface AppContextValue {
   /** Currently selected subreddit/feed id (matches FolderPane item ids) */
@@ -40,11 +41,8 @@ interface AppContextValue {
   setSelectedPost: (post: Post | null) => void;
 
   /** Sort mode for current feed */
-  sortMode: "hot" | "new" | "top" | "rising";
-  setSortMode: (mode: "hot" | "new" | "top" | "rising") => void;
-
-  timeframe: TopTimeRange;
-  setTimeframe: (t: TopTimeRange) => void;
+  sortMode: "hot" | "new" | "top";
+  setSortMode: (mode: "hot" | "new" | "top") => void;
 
   subreddits: SubredditItem[];
   setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
@@ -60,8 +58,6 @@ const AppContext = createContext<AppContextValue>({
   setSelectedPost: () => {},
   sortMode: "hot",
   setSortMode: () => {},
-  timeframe: "day",
-  setTimeframe: () => {},
   subreddits: INITIAL_SUBSCRIBED,
   setSubreddits: () => {},
   addSubreddit: () => {},
@@ -72,10 +68,47 @@ const AppContext = createContext<AppContextValue>({
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [sortMode, setSortModeRaw] = useState<"hot" | "new" | "top" | "rising">("hot");
-  const [timeframe, setTimeframeRaw] = useState<TopTimeRange>("day");
-  const [subreddits, setSubreddits] =
+  const [sortMode, setSortModeRaw] = useState<"hot" | "new" | "top">("hot");
+  const [subreddits, setSubredditsRaw] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("reddit365_subscriptions");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const restored = parsed.map((item: any) => ({
+            ...item,
+            icon: Hash,
+          }));
+          setSubredditsRaw(restored);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load subscriptions", e);
+    }
+  }, []);
+
+  const setSubreddits = useCallback(
+    (valOrFn: React.SetStateAction<SubredditItem[]>) => {
+      setSubredditsRaw((prev) => {
+        const next =
+          typeof valOrFn === "function" ? (valOrFn as Function)(prev) : valOrFn;
+        try {
+          const toSave = next.map(({ icon, ...rest }: SubredditItem) => rest);
+          localStorage.setItem(
+            "reddit365_subscriptions",
+            JSON.stringify(toSave)
+          );
+        } catch (e) {
+          console.error("Failed to save subscriptions", e);
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   // When switching feeds, clear the selected post
   const setActiveFeed = useCallback((feed: string) => {
@@ -83,13 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedPost(null);
   }, []);
 
-  const setSortMode = useCallback((mode: "hot" | "new" | "top" | "rising") => {
+  const setSortMode = useCallback((mode: "hot" | "new" | "top") => {
     setSortModeRaw(mode);
-    setSelectedPost(null);
-  }, []);
-
-  const setTimeframe = useCallback((t: TopTimeRange) => {
-    setTimeframeRaw(t);
     setSelectedPost(null);
   }, []);
 
@@ -130,8 +158,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedPost,
         sortMode,
         setSortMode,
-        timeframe,
-        setTimeframe,
         subreddits,
         setSubreddits,
         addSubreddit,

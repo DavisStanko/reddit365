@@ -85,12 +85,9 @@ export function PostList() {
     setSelectedPost,
     sortMode,
     setSortMode,
-    timeframe,
-    setTimeframe,
   } = useAppContext();
 
   const [posts, setPosts] = useState<Post[]>([]);
-  const [after, setAfter] = useState<string | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +105,7 @@ export function PostList() {
   const hasMoreRef = useRef(true);
   const requestIdRef = useRef(0);
 
-  const buildUrl = useCallback((feed: string, sort: string, t: string, afterToken: string | null) => {
+  const buildUrl = useCallback((feed: string, sort: string, afterToken: string | null) => {
     let basePath = "";
     if (feed === "frontpage") {
       basePath = "";
@@ -129,7 +126,7 @@ export function PostList() {
     }
 
     if (sort === "top") {
-      url += `&t=${t}`;
+      url += `&t=all`;
     }
     if (afterToken) {
       url += `&after=${afterToken}`;
@@ -141,7 +138,6 @@ export function PostList() {
     async (
       feed: string,
       sort: string,
-      t: string,
       afterToken: string | null,
       append: boolean
     ) => {
@@ -158,7 +154,7 @@ export function PostList() {
       abortRef.current = controller;
 
       try {
-        const url = buildUrl(feed, sort, t, afterToken);
+        const url = buildUrl(feed, sort, afterToken);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -175,7 +171,6 @@ export function PostList() {
         if (requestId !== requestIdRef.current) return;
 
         afterRef.current = nextAfter;
-        setAfter(nextAfter);
         hasMoreRef.current = nextAfter !== null;
         setHasMorePosts(nextAfter !== null);
 
@@ -204,23 +199,22 @@ export function PostList() {
 
   const resetAndFetch = useCallback(() => {
     setPosts([]);
-    setAfter(null);
     setHasMorePosts(true);
     afterRef.current = null;
     hasMoreRef.current = true;
     setError(null);
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
-    void doFetch(activeFeed, sortMode, timeframe, null, false);
-  }, [activeFeed, sortMode, timeframe, doFetch]);
+    void doFetch(activeFeed, sortMode, null, false);
+  }, [activeFeed, sortMode, doFetch]);
 
-  // Initial fetch on feed/sort/timeframe change
+  // Initial fetch on feed/sort change
   useEffect(() => {
-    const key = `${activeFeed}::${sortMode}::${timeframe}`;
+    const key = `${activeFeed}::${sortMode}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
 
     resetAndFetch();
-  }, [activeFeed, sortMode, timeframe, resetAndFetch]);
+  }, [activeFeed, sortMode, resetAndFetch]);
 
   // Infinite scroll
   useEffect(() => {
@@ -234,7 +228,7 @@ export function PostList() {
           hasMoreRef.current &&
           afterRef.current
         ) {
-          doFetch(activeFeed, sortMode, timeframe, afterRef.current, true);
+          doFetch(activeFeed, sortMode, afterRef.current, true);
         }
       },
       { root: listRef.current, rootMargin: "200px" }
@@ -245,7 +239,7 @@ export function PostList() {
     }
 
     return () => observerRef.current?.disconnect();
-  }, [activeFeed, sortMode, timeframe, doFetch]);
+  }, [activeFeed, sortMode, doFetch]);
 
   const feedLabel =
     activeFeed === "frontpage"
@@ -266,7 +260,7 @@ export function PostList() {
             role="tablist"
             aria-label="Post sort options"
           >
-            {(["hot", "new", "top", "rising"] as const).map((mode) => (
+            {(["hot", "new", "top"] as const).map((mode) => (
               <button
                 key={mode}
                 role="tab"
@@ -281,31 +275,6 @@ export function PostList() {
             ))}
           </div>
 
-          {sortMode === "top" && (
-            <select
-              value={timeframe}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              onChange={(e) => setTimeframe(e.target.value as any)}
-              className="post-list__timeframe-select"
-              aria-label="Top timeframe"
-              style={{
-                marginLeft: "8px",
-                padding: "2px 6px",
-                fontSize: "12px",
-                borderRadius: "4px",
-                border: "1px solid var(--outlook-border)",
-                background: "transparent",
-                color: "var(--outlook-text)",
-              }}
-            >
-              <option value="hour">Past Hour</option>
-              <option value="day">Past 24 Hours</option>
-              <option value="week">Past Week</option>
-              <option value="month">Past Month</option>
-              <option value="year">Past Year</option>
-              <option value="all">All Time</option>
-            </select>
-          )}
         </div>
 
         <div className="post-list__header-actions" aria-label="Mail list actions">
