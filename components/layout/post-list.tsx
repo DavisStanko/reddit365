@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Filter, SortAsc, MoreHorizontal, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import type { Post } from "@/lib/sample-posts";
 
@@ -241,19 +241,9 @@ export function PostList() {
     return () => observerRef.current?.disconnect();
   }, [activeFeed, sortMode, doFetch]);
 
-  const feedLabel =
-    activeFeed === "frontpage"
-      ? "Front Page"
-      : activeFeed === "all"
-      ? "r/All"
-      : activeFeed === "popular"
-      ? "r/Popular"
-      : `r/${activeFeed.replace(/^r\//, "")}`;
-
   return (
     <div className="post-list">
       <div className="post-list__header">
-        <div className="post-list__feed-name">{feedLabel}</div>
         <div className="post-list__header-main">
           <div
             className="post-list__tabs"
@@ -289,15 +279,6 @@ export function PostList() {
               size={14}
               className={isLoadingPosts && posts.length === 0 ? "post-list__icon-spin" : ""}
             />
-          </button>
-          <button className="post-list__header-btn" type="button" aria-label="Filter">
-            <Filter size={14} />
-          </button>
-          <button className="post-list__header-btn" type="button" aria-label="Sort">
-            <SortAsc size={14} />
-          </button>
-          <button className="post-list__header-btn" type="button" aria-label="More options">
-            <MoreHorizontal size={14} />
           </button>
         </div>
       </div>
