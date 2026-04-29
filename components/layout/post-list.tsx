@@ -1,237 +1,63 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { RefreshCw, X, ChevronDown } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
-import type { Post } from "@/lib/sample-posts";
+import { useReddit, type SortMode, type Timeframe } from "@/lib/use-reddit";
 
-function parseRedditPost(d: any): Post {
-  const subreddit = `r/${d.subreddit}`;
-  const body = d.selftext?.trim()
-    ? d.selftext
-    : d.url && !d.url.startsWith("https://www.reddit.com")
-      ? `[Link post] ${d.url}`
-      : "";
-
-  let imageUrl: string | undefined = undefined;
-  let mediaUrl: string | undefined = undefined;
-  let mediaType: "image" | "video" | undefined = undefined;
-
-  const directUrl = d.url_overridden_by_dest || d.url;
-  if (d.is_video) {
-    const videoUrl =
-      d.secure_media?.reddit_video?.fallback_url ||
-      d.media?.reddit_video?.fallback_url;
-    if (videoUrl) {
-      mediaUrl = videoUrl;
-      mediaType = "video";
-    }
-  } else if (d.is_gallery) {
-    const firstItemId = d.gallery_data?.items?.[0]?.media_id;
-    const galleryUrl = firstItemId && d.media_metadata?.[firstItemId]?.s?.u;
-    if (galleryUrl) {
-      const url = galleryUrl.replace(/&amp;/g, "&");
-      imageUrl = url;
-      mediaUrl = url;
-      mediaType = "image";
-    }
-  } else if (directUrl && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(directUrl)) {
-    imageUrl = directUrl;
-    mediaUrl = directUrl;
-    mediaType = "image";
-  } else if (d.preview?.images?.[0]?.source?.url) {
-    const url = d.preview.images[0].source.url.replace(/&amp;/g, "&");
-    imageUrl = url;
-    mediaUrl = url;
-    mediaType = "image";
-  }
-
-  let scoreStr = "0";
-  if (d.score >= 1000) {
-    scoreStr = (d.score / 1000).toFixed(1) + "k";
-  } else {
-    scoreStr = String(d.score || 0);
-  }
-
-  let timeStr = "0m";
-  if (d.created_utc) {
-    const diffMs = Date.now() - d.created_utc * 1000;
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) timeStr = `${diffMins}m`;
-    else if (diffMins < 60 * 24) timeStr = `${Math.floor(diffMins / 60)}h`;
-    else timeStr = `${Math.floor(diffMins / (60 * 24))}d`;
-  }
-
-  return {
-    id: d.name ? parseInt(d.name.replace(/^t3_/, ""), 36) : Math.floor(Math.random() * 1000000),
-    title: d.title || "Untitled",
-    subreddit,
-    author: d.author || "unknown",
-    time: timeStr,
-    score: scoreStr,
-    comments: d.num_comments || 0,
-    body,
-    imageUrl,
-    mediaUrl,
-    mediaType,
-    permalink: d.permalink,
-  };
-}
+const SORT_OPTIONS: SortMode[] = ["hot", "new", "top", "rising"];
+const TIMEFRAMES: { value: Timeframe; label: string }[] = [
+  { value: "hour", label: "Past Hour" },
+  { value: "day", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "year", label: "This Year" },
+  { value: "all", label: "All Time" },
+];
 
 export function PostList() {
   const {
     activeFeed,
     selectedPost,
     setSelectedPost,
-    sortMode,
-    setSortMode,
+    currentSort,
+    setCurrentSort,
+    currentTimeframe,
+    setCurrentTimeframe,
   } = useAppContext();
 
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  const [hasMorePosts, setHasMorePosts] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
+  const {
+    posts,
+    isLoadingPosts,
+    hasMorePosts,
+    postsError,
+    loadMorePosts,
+    refreshPosts,
+  } = useReddit(activeFeed, currentSort, currentTimeframe, selectedPost);
 
-  const abortRef = useRef<AbortController | null>(null);
-  const loadedKeyRef = useRef<string>("");
+  const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // We need refs to avoid stale closures in intersection observer
-  const loadingRef = useRef(false);
-  const afterRef = useRef<string | null>(null);
-  const hasMoreRef = useRef(true);
-  const requestIdRef = useRef(0);
-
-  const buildUrl = useCallback((feed: string, sort: string, afterToken: string | null) => {
-    let basePath = "";
-    if (feed === "frontpage") {
-      basePath = "";
-    } else if (feed === "popular") {
-      basePath = "/r/popular";
-    } else if (feed === "all") {
-      basePath = "/r/all";
-    } else {
-      basePath = `/r/${feed.replace(/^r\//, "")}`;
-    }
-
-    // Sort is part of the URL path: r/[subreddit]/[sort].json
-    let url = "";
-    if (basePath === "" && sort === "hot") {
-      url = `https://www.reddit.com/.json?raw_json=1&limit=25`;
-    } else {
-      url = `https://www.reddit.com${basePath}/${sort}.json?raw_json=1&limit=25`;
-    }
-
-    if (sort === "top") {
-      url += `&t=all`;
-    }
-    if (afterToken) {
-      url += `&after=${afterToken}`;
-    }
-    return url;
-  }, []);
-
-  const doFetch = useCallback(
-    async (
-      feed: string,
-      sort: string,
-      afterToken: string | null,
-      append: boolean
-    ) => {
-      if (loadingRef.current) return;
-      if (append && !hasMoreRef.current) return;
-
-      const requestId = ++requestIdRef.current;
-      loadingRef.current = true;
-      setIsLoadingPosts(true);
-      setError(null);
-
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const url = buildUrl(feed, sort, afterToken);
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const json = await res.json();
-        const children = json?.data?.children || [];
-        const nextAfter = json?.data?.after || null;
-
-        const newPosts: Post[] = children
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.kind === "t3")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any) => parseRedditPost(c.data));
-
-        if (requestId !== requestIdRef.current) return;
-
-        afterRef.current = nextAfter;
-        hasMoreRef.current = nextAfter !== null;
-        setHasMorePosts(nextAfter !== null);
-
-        if (append) {
-          setPosts((prev) => {
-            const known = new Set(prev.map((post) => post.id));
-            const uniquePosts = newPosts.filter((post) => !known.has(post.id));
-            return [...prev, ...uniquePosts];
-          });
-        } else {
-          setPosts(newPosts);
-        }
-      } catch (e: unknown) {
-        if ((e as Error).name === "AbortError") return;
-        if (requestId !== requestIdRef.current) return;
-        setError("Could not load posts.");
-        console.error("[PostList]", e);
-      } finally {
-        if (requestId !== requestIdRef.current) return;
-        loadingRef.current = false;
-        setIsLoadingPosts(false);
-      }
-    },
-    [buildUrl]
-  );
-
-  const resetAndFetch = useCallback(() => {
-    setPosts([]);
-    setHasMorePosts(true);
-    afterRef.current = null;
-    hasMoreRef.current = true;
-    setError(null);
-    listRef.current?.scrollTo({ top: 0, behavior: "instant" });
-    void doFetch(activeFeed, sortMode, null, false);
-  }, [activeFeed, sortMode, doFetch]);
-
-  // Initial fetch on feed/sort change
+  // Scroll to top when feed/sort/timeframe changes
   useEffect(() => {
-    const key = `${activeFeed}::${sortMode}`;
-    if (loadedKeyRef.current === key) return;
-    loadedKeyRef.current = key;
+    listRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeFeed, currentSort, currentTimeframe]);
 
-    resetAndFetch();
-  }, [activeFeed, sortMode, resetAndFetch]);
-
-  // Infinite scroll
+  // Infinite scroll via IntersectionObserver
   useEffect(() => {
     observerRef.current?.disconnect();
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          !loadingRef.current &&
-          hasMoreRef.current &&
-          afterRef.current
-        ) {
-          doFetch(activeFeed, sortMode, afterRef.current, true);
+        if (entries[0].isIntersecting) {
+          loadMorePosts();
         }
       },
-      { root: listRef.current, rootMargin: "200px" }
+      { root: listRef.current, rootMargin: "200px" },
     );
 
     if (sentinelRef.current) {
@@ -239,7 +65,15 @@ export function PostList() {
     }
 
     return () => observerRef.current?.disconnect();
-  }, [activeFeed, sortMode, doFetch]);
+  }, [loadMorePosts]);
+
+  // Close time dropdown on outside click
+  useEffect(() => {
+    if (!showTimeDropdown) return;
+    const handler = () => setShowTimeDropdown(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showTimeDropdown]);
 
   return (
     <div className="post-list">
@@ -250,21 +84,59 @@ export function PostList() {
             role="tablist"
             aria-label="Post sort options"
           >
-            {(["hot", "new", "top"] as const).map((mode) => (
+            {SORT_OPTIONS.map((mode) => (
               <button
                 key={mode}
                 role="tab"
-                aria-selected={sortMode === mode}
+                aria-selected={currentSort === mode}
                 className={`post-list__tab${
-                  sortMode === mode ? " post-list__tab--active" : ""
+                  currentSort === mode ? " post-list__tab--active" : ""
                 }`}
-                onClick={() => setSortMode(mode)}
+                onClick={() => setCurrentSort(mode)}
               >
                 {mode[0].toUpperCase() + mode.slice(1)}
               </button>
             ))}
           </div>
 
+          {/* Time range picker — only visible when "top" is selected */}
+          {currentSort === "top" && (
+            <div
+              className="post-list__time-picker"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="post-list__time-btn"
+                onClick={() => setShowTimeDropdown(!showTimeDropdown)}
+                type="button"
+              >
+                {TIMEFRAMES.find((t) => t.value === currentTimeframe)?.label ??
+                  "Today"}
+                <ChevronDown size={12} />
+              </button>
+              {showTimeDropdown && (
+                <div className="post-list__time-dropdown">
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.value}
+                      className={`post-list__time-option${
+                        currentTimeframe === tf.value
+                          ? " post-list__time-option--active"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        setCurrentTimeframe(tf.value);
+                        setShowTimeDropdown(false);
+                      }}
+                      type="button"
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="post-list__header-actions" aria-label="Mail list actions">
@@ -272,12 +144,16 @@ export function PostList() {
             className="post-list__header-btn"
             type="button"
             aria-label="Refresh"
-            onClick={resetAndFetch}
+            onClick={refreshPosts}
             title="Refresh"
           >
             <RefreshCw
               size={14}
-              className={isLoadingPosts && posts.length === 0 ? "post-list__icon-spin" : ""}
+              className={
+                isLoadingPosts && posts.length === 0
+                  ? "post-list__icon-spin"
+                  : ""
+              }
             />
           </button>
         </div>
@@ -285,32 +161,21 @@ export function PostList() {
 
       <div ref={listRef} className="post-list__items" role="list">
         {activeFeed === "frontpage" && showFrontpageBanner && (
-          <div
-            style={{
-              padding: "12px 16px",
-              backgroundColor: "var(--outlook-bg-hover)",
-              borderBottom: "1px solid var(--outlook-border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              fontSize: "13px",
-              color: "var(--outlook-text)",
-            }}
-          >
+          <div className="post-list__banner">
             <span>Sign in with Reddit to see your personal frontpage.</span>
             <button
               onClick={() => setShowFrontpageBanner(false)}
               aria-label="Dismiss banner"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+              className="post-list__banner-close"
             >
               <X size={14} />
             </button>
           </div>
         )}
 
-        {error && (
+        {postsError && (
           <div className="post-list__error" role="alert">
-            {error}
+            {postsError}
           </div>
         )}
 
