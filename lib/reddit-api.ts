@@ -1,18 +1,20 @@
 import type { Post } from "./sample-posts";
 
 /** Map a subreddit id from our folder pane to a Reddit API path */
-function subToPath(sub: string): string {
+function subToPath(sub: string, sort: string): string {
+  const sortPath = sort === "new" || sort === "top" ? `/${sort}` : "";
   switch (sub) {
     case "frontpage":
-      return "/.json";
+      return `/${sort === "hot" ? "" : sort}.json`;
     case "all":
-      return "/r/all.json";
+      return `/r/all${sortPath}.json`;
     case "popular":
-      return "/r/popular.json";
-    default:
+      return `/r/popular${sortPath}.json`;
+    default: {
       // strip leading "r/" if present, then reconstruct
       const name = sub.startsWith("r/") ? sub.slice(2) : sub;
-      return `/r/${name}.json`;
+      return `/r/${name}${sortPath}.json`;
+    }
   }
 }
 
@@ -42,10 +44,11 @@ export interface PostsResponse {
 /** Fetch posts from Reddit's public JSON API (server-side use) */
 export async function fetchRedditPosts(
   sub: string,
+  sort = "hot",
   after?: string | null,
   limit = 25
 ): Promise<PostsResponse> {
-  const path = subToPath(sub);
+  const path = subToPath(sub, sort);
   const params = new URLSearchParams({ limit: String(limit), raw_json: "1" });
   if (after) params.set("after", after);
 

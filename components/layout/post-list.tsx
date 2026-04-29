@@ -5,17 +5,86 @@ import {
   useRef,
   useState,
   useCallback,
-  useTransition,
 } from "react";
 import { useAppContext } from "@/components/app-context";
 import type { Post } from "@/lib/sample-posts";
-import type { PostsResponse } from "@/lib/reddit-api";
 
 const SORT_LABELS = {
   hot: "Hot",
   new: "New",
   top: "Top",
 } as const;
+
+/** Map folder-pane id → Reddit path segment */
+function buildRedditUrl(sub: string, sort: string, after?: string | null): string {
+  let path: string;
+  const sortSuffix = sort === "hot" ? "" : `/${sort}`;
+
+  switch (sub) {
+    case "frontpage":
+      path = sort === "hot" ? "/" : `/${sort}`;
+      break;
+    case "all":
+      path = `/r/all${sortSuffix}`;
+      break;
+    case "popular":
+      path = `/r/popular${sortSuffix}`;
+      break;
+    default: {
+      const name = sub.startsWith("r/") ? sub.slice(2) : sub;
+      path = `/r/${name}${sortSuffix}`;
+      break;
+    }
+  }
+
+  const params = new URLSearchParams({ limit: "25", raw_json: "1" });
+  if (after) params.set("after", after);
+
+  return `https://www.reddit.com${path}.json?${params.toString()}`;
+}
+
+function formatAge(created_utc: number): string {
+  const diffMs = Date.now() - created_utc * 1000;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 60) return `${diffMins}m`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  return `${Math.floor(diffHours / 24)}d`;
+}
+
+function formatScore(score: number): string {
+  if (score >= 1000) return `${(score / 1000).toFixed(1)}k`;
+  return String(score);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRedditPost(d: any, idx: number): Post {
+  const body: string =
+    d.selftext?.trim()
+      ? d.selftext
+      : d.url && !d.url.startsWith("https://www.reddit.com")
+      ? `[Link post] ${d.url}`
+      : "(No body text)";
+
+  let imageUrl: string | undefined;
+  if (d.post_hint === "image" && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(d.url ?? "")) {
+    imageUrl = d.url;
+  } else if (d.preview?.images?.[0]?.source?.url) {
+    imageUrl = (d.preview.images[0].source.url as string).replace(/&amp;/g, "&");
+  }
+
+  return {
+    id: idx,
+    title: d.title,
+    subreddit: `r/${d.subreddit}`,
+    author: d.author,
+    time: formatAge(d.created_utc),
+    score: formatScore(d.score),
+    comments: d.num_comments ?? 0,
+    body,
+    imageUrl,
+  };
+}
 
 export function PostList() {
   const { activeFeed, selectedPost, setSelectedPost, sortMode, setSortMode } =
@@ -25,85 +94,93 @@ export function PostList() {
   const [after, setAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
 
-  // Track which feed+sort we've already fetched to avoid double-fetching
-  const feedRef = useRef<string>("");
-  const sortRef = useRef<string>("");
+  // Abort controller ref so we can cancel stale requests when feed changes
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Track the last feed+sort we loaded so the IntersectionObserver
+  // doesn't re-fetch on mount after the feed-change effect already did it
+  const loadedKeyRef = useRef<string>("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadingRef = useRef(false);
+  const afterRef = useRef<string | null>(null);
 
-  // Fetch a page of posts; if `reset` is true, clear existing posts first
-  const fetchPosts = useCallback(
-    async (feed: string, sort: string, afterToken: string | null, reset: boolean) => {
-      if (loading) return;
+  const doFetch = useCallback(
+    async (feed: string, sort: string, afterToken: string | null, append: boolean) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
 
-      try {
-        const params = new URLSearchParams({ sub: feed, sort });
-        if (afterToken) params.set("after", afterToken);
-        const res = await fetch(`/api/posts?${params.toString()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: PostsResponse = await res.json();
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-        if (reset) {
-          startTransition(() => {
-            setPosts(data.posts);
-          });
+      try {
+        const url = buildRedditUrl(feed, sort, afterToken);
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const json: any = await res.json();
+        const children = json?.data?.children ?? [];
+        const nextAfter: string | null = json?.data?.after ?? null;
+
+        const newPosts: Post[] = children
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((c: any) => c.kind === "t3")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((c: any, i: number) => mapRedditPost(c.data, append ? (posts.length + i) : i));
+
+        afterRef.current = nextAfter;
+        setAfter(nextAfter);
+
+        if (append) {
+          setPosts((prev) => [...prev, ...newPosts]);
         } else {
-          startTransition(() => {
-            setPosts((prev) => [...prev, ...data.posts]);
-          });
+          setPosts(newPosts);
         }
-        setAfter(data.after);
-      } catch (e) {
-        setError("Failed to load posts. Reddit may be rate-limiting us.");
-        console.error("[PostList] fetch error:", e);
+      } catch (e: unknown) {
+        if ((e as { name?: string }).name === "AbortError") return;
+        setError("Could not load posts — Reddit may be blocking the request.");
+        console.error("[PostList]", e);
       } finally {
+        loadingRef.current = false;
         setLoading(false);
       }
     },
-    [loading]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
-  // When feed or sort changes, reset and fetch fresh
+  // When feed or sort changes → reset and fetch first page
   useEffect(() => {
-    if (feedRef.current === activeFeed && sortRef.current === sortMode) return;
-    feedRef.current = activeFeed;
-    sortRef.current = sortMode;
+    const key = `${activeFeed}::${sortMode}`;
+    if (loadedKeyRef.current === key) return;
+    loadedKeyRef.current = key;
 
+    abortRef.current?.abort();
     setPosts([]);
     setAfter(null);
-
-    // Kick off first fetch
-    fetch(`/api/posts?sub=${activeFeed}&sort=${sortMode}`)
-      .then((r) => r.json())
-      .then((data: PostsResponse) => {
-        startTransition(() => setPosts(data.posts));
-        setAfter(data.after);
-        setError(null);
-      })
-      .catch(() => setError("Failed to load posts."))
-      .finally(() => setLoading(false));
-
-    setLoading(true);
+    afterRef.current = null;
     setError(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFeed, sortMode]);
 
-  // Set up IntersectionObserver on the sentinel div
+    doFetch(activeFeed, sortMode, null, false);
+  }, [activeFeed, sortMode, doFetch]);
+
+  // Infinite scroll: watch sentinel
   useEffect(() => {
-    if (observerRef.current) observerRef.current.disconnect();
+    observerRef.current?.disconnect();
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && !loading && after) {
-          fetchPosts(activeFeed, sortMode, after, false);
+        if (entries[0].isIntersecting && !loadingRef.current && afterRef.current) {
+          doFetch(activeFeed, sortMode, afterRef.current, true);
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: "200px" }
     );
 
     if (sentinelRef.current) {
@@ -111,16 +188,17 @@ export function PostList() {
     }
 
     return () => observerRef.current?.disconnect();
-  }, [loading, after, activeFeed, sortMode, fetchPosts]);
+  }, [activeFeed, sortMode, doFetch]);
 
-  // Human-readable feed name for the header
-  const feedLabel = activeFeed === "frontpage"
-    ? "Front Page"
-    : activeFeed === "all"
-    ? "r/All"
-    : activeFeed === "popular"
-    ? "r/Popular"
-    : `r/${activeFeed.startsWith("r/") ? activeFeed.slice(2) : activeFeed}`;
+  // Human-readable feed name
+  const feedLabel =
+    activeFeed === "frontpage"
+      ? "Front Page"
+      : activeFeed === "all"
+      ? "r/All"
+      : activeFeed === "popular"
+      ? "r/Popular"
+      : `r/${activeFeed.startsWith("r/") ? activeFeed.slice(2) : activeFeed}`;
 
   return (
     <div className="post-list">
@@ -132,7 +210,9 @@ export function PostList() {
               key={mode}
               role="tab"
               aria-selected={sortMode === mode}
-              className={`post-list__tab${sortMode === mode ? " post-list__tab--active" : ""}`}
+              className={`post-list__tab${
+                sortMode === mode ? " post-list__tab--active" : ""
+              }`}
               onClick={() => setSortMode(mode)}
             >
               {SORT_LABELS[mode]}
@@ -149,7 +229,9 @@ export function PostList() {
         )}
 
         {posts.map((post, idx) => {
-          const isSelected = selectedPost?.id === post.id && selectedPost?.title === post.title;
+          const isSelected =
+            selectedPost?.title === post.title &&
+            selectedPost?.author === post.author;
           return (
             <article
               key={`${activeFeed}-${idx}`}
@@ -185,10 +267,11 @@ export function PostList() {
           );
         })}
 
-        {/* Infinite scroll sentinel */}
+        {/* Infinite scroll sentinel — placed BEFORE loading so observer fires
+            before reaching the very bottom */}
         <div ref={sentinelRef} className="post-list__sentinel" aria-hidden="true" />
 
-        {(loading || isPending) && (
+        {loading && (
           <div className="post-list__loading" aria-live="polite">
             <div className="post-list__loading-row" />
             <div className="post-list__loading-row post-list__loading-row--short" />
