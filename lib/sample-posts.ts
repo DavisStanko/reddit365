@@ -39,6 +39,7 @@ Researchers say this image covers a patch of sky approximately the size of a gra
 The telescope's ability to peer back in time is giving astronomers unprecedented insight into the earliest stages of galaxy formation, just a few hundred million years after the Big Bang.`,
     imageUrl:
       "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Webb%27s_First_Deep_Field.jpg/1280px-Webb%27s_First_Deep_Field.jpg",
+    permalink: "/r/science/comments/1",
   },
   {
     id: 2,
@@ -62,6 +63,7 @@ Some other ones I've gathered from friends:
 **Basic sewing** — being able to fix a button or hem pants takes 10 minutes to learn and saves you trips to the tailor.
 
 What are yours?`,
+    permalink: "/r/AskReddit/comments/2",
   },
   {
     id: 3,
@@ -83,6 +85,7 @@ When archaeologists found 3,000-year-old honey in Egyptian tombs, they found it 
 Source: National Geographic, Smithsonian Magazine`,
     imageUrl:
       "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Runny_hunridge.jpg/1280px-Runny_hunridge.jpg",
+    permalink: "/r/todayilearned/comments/3",
   },
   {
     id: 4,
@@ -113,6 +116,7 @@ Source: National Geographic, Smithsonian Magazine`,
 The app isn't perfect — the code could be cleaner and there are definitely bugs I haven't found yet. But it works, it's deployed, and I'm proud of it.
 
 Happy to answer any questions from fellow beginners!`,
+    permalink: "/r/programming/comments/4",
   },
   {
     id: 5,
@@ -137,6 +141,7 @@ The breakthrough uses a novel electrode architecture made from specially designe
 The researchers say the manufacturing process is compatible with existing battery production lines, which means this technology could be commercially viable within 2-3 years.
 
 However, the big caveat is that you'd need a much more powerful charger — standard USB-C chargers wouldn't deliver enough power for these speeds. We'd need new charging infrastructure.`,
+    permalink: "/r/technology/comments/5",
   },
   {
     id: 6,
@@ -164,6 +169,7 @@ Yesterday she managed to send a half-written Slack message to my entire team tha
 I've accepted my fate. This is her desk now. I just work here.`,
     imageUrl:
       "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/1200px-Cat_November_2010-1a.jpg",
+    permalink: "/r/funny/comments/6",
   },
   {
     id: 7,
@@ -183,6 +189,7 @@ The researchers suggest that microplastics in clouds could be affecting climate 
 "If cloud formation is being affected by microplastic pollution, the consequences for the climate could be significant," said the lead researcher.
 
 The findings add to growing evidence that microplastic pollution has reached virtually every corner of the planet, from the deepest ocean trenches to the highest mountain peaks, and now the very clouds above us.`,
+    permalink: "/r/worldnews/comments/7",
   },
   {
     id: 8,
@@ -210,5 +217,6 @@ It's one of those rare films where every element comes together perfectly. Not a
 - Interstellar (2014)
 
 What are your 10/10 movies?`,
+    permalink: "/r/movies/comments/8",
   },
 ];

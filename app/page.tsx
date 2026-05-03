@@ -14,11 +14,11 @@ import { AppProvider } from "@/components/app-context";
 
 const MIN_FOLDER_WIDTH = 160;
 const MAX_FOLDER_WIDTH = 400;
-const DEFAULT_FOLDER_WIDTH = 220;
+const DEFAULT_FOLDER_WIDTH = 176;
 
 const MIN_LIST_WIDTH = 200;
 const MAX_LIST_WIDTH = 600;
-const DEFAULT_LIST_WIDTH = 340;
+const DEFAULT_LIST_WIDTH = 330;
 
 export default function Home() {
   const [folderWidth, setFolderWidth] = useState(DEFAULT_FOLDER_WIDTH);
@@ -26,13 +26,13 @@ export default function Home() {
 
   const handleFolderResize = useCallback((delta: number) => {
     setFolderWidth((w) =>
-      Math.min(MAX_FOLDER_WIDTH, Math.max(MIN_FOLDER_WIDTH, w + delta))
+      Math.min(MAX_FOLDER_WIDTH, Math.max(MIN_FOLDER_WIDTH, w + delta)),
     );
   }, []);
 
   const handleListResize = useCallback((delta: number) => {
     setListWidth((w) =>
-      Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, w + delta))
+      Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, w + delta)),
     );
   }, []);
 
@@ -49,7 +49,10 @@ export default function Home() {
             <IconRail />
 
             {/* Folder pane — resizable */}
-            <div className="outlook-shell__folder" style={{ width: folderWidth }}>
+            <div
+              className="outlook-shell__folder"
+              style={{ width: folderWidth }}
+            >
               <FolderPane />
             </div>
             <ResizeHandle onResize={handleFolderResize} />

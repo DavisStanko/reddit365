@@ -24,7 +24,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue>({
-  activeFeed: "frontpage",
+  activeFeed: "inbox",
   setActiveFeed: () => {},
   selectedPost: null,
   setSelectedPost: () => {},
@@ -33,7 +33,7 @@ const AppContext = createContext<AppContextValue>({
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
+  const [activeFeed, setActiveFeedRaw] = useState<string>("inbox");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [sortMode, setSortMode] = useState<"hot" | "new" | "top">("hot");
 
