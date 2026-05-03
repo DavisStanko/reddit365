@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
-import { useReddit } from "@/lib/use-reddit";
+import { useRedditContext } from "@/components/reddit-context";
 import type { FlatComment } from "@/lib/sample-posts";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
@@ -53,16 +53,13 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
 }
 
 function CommentThread() {
-  const { activeFeed, selectedPost, currentSort, currentTimeframe } =
-    useAppContext();
-
   const {
     comments,
     isLoadingComments,
     hasMoreComments,
     commentsError,
     loadMoreComments,
-  } = useReddit(activeFeed, currentSort, currentTimeframe, selectedPost);
+  } = useRedditContext();
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);

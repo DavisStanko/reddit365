@@ -60,7 +60,7 @@ function buildPostsUrl(
   }
 
   // Sort is part of URL path: /r/sub/hot.json, /r/sub/new.json, etc.
-  const url = new URL(`https://www.reddit.com${basePath}/${sort}.json`);
+  const url = new URL(`/reddit${basePath}/${sort}.json`, window.location.origin);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "25");
 
@@ -80,7 +80,7 @@ function buildCommentsUrl(
 ): string {
   // permalink looks like /r/subreddit/comments/abc123/slug/
   const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
-  const url = new URL(`https://www.reddit.com${clean}.json`);
+  const url = new URL(`/reddit${clean}.json`, window.location.origin);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "50");
   url.searchParams.set("sort", "confidence");
@@ -238,48 +238,180 @@ export function useReddit(
   const [commentsError, setCommentsError] = useState<string | null>(null);
 
   // ---- Refs to avoid stale closures ----
-  const postsAbortRef = useRef<AbortController | null>(null);
-  const commentsAbortRef = useRef<AbortController | null>(null);
   const afterRef = useRef<string | null>(null);
   const loadingPostsRef = useRef(false);
   const commentsAfterRef = useRef<string | null>(null);
   const loadingCommentsRef = useRef(false);
-  const postRequestIdRef = useRef(0);
-  const commentRequestIdRef = useRef(0);
 
-  // Track feed+sort key to detect changes
-  const feedKeyRef = useRef("");
+  // Stable refs for current params (used by loadMore callbacks)
+  const feedRef = useRef(feed);
+  const sortRef = useRef(sort);
+  const timeframeRef = useRef(timeframe);
+  const selectedPostRef = useRef(selectedPost);
+
+  feedRef.current = feed;
+  sortRef.current = sort;
+  timeframeRef.current = timeframe;
+  selectedPostRef.current = selectedPost;
 
   // ------------------------------------------------------------------
-  // fetchPosts — core function
+  // Effect: fetch posts when feed/sort/timeframe changes
   // ------------------------------------------------------------------
-  const fetchPosts = useCallback(
-    async (
-      targetFeed: string,
-      targetSort: SortMode,
-      targetTimeframe: Timeframe,
-      afterToken: string | null,
-      append: boolean,
-    ) => {
-      if (loadingPostsRef.current) return;
+  useEffect(() => {
+    const controller = new AbortController();
 
-      const requestId = ++postRequestIdRef.current;
+    // Reset state
+    setPosts([]);
+    setAfter(null);
+    setHasMorePosts(true);
+    setPostsError(null);
+    afterRef.current = null;
+    loadingPostsRef.current = false;
+
+    const doFetch = async () => {
       loadingPostsRef.current = true;
       setIsLoadingPosts(true);
       setPostsError(null);
 
-      // Cancel any in-flight post request
-      postsAbortRef.current?.abort();
-      const controller = new AbortController();
-      postsAbortRef.current = controller;
-
       try {
-        const url = buildPostsUrl(targetFeed, targetSort, targetTimeframe, afterToken);
+        const url = buildPostsUrl(feed, sort, timeframe, null);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const json = await res.json();
-        if (requestId !== postRequestIdRef.current) return;
+        if (controller.signal.aborted) return;
+
+        const children = json?.data?.children ?? [];
+        const nextAfter: string | null = json?.data?.after ?? null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newPosts: Post[] = children
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((c: any) => c.kind === "t3")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((c: any) => parsePost(c.data));
+
+        afterRef.current = nextAfter;
+        setAfter(nextAfter);
+        setHasMorePosts(nextAfter !== null);
+        setPosts(newPosts);
+      } catch (err: unknown) {
+        if ((err as Error).name === "AbortError") return;
+        if (controller.signal.aborted) return;
+        console.error("[useReddit] posts fetch error:", err);
+        setPostsError("Could not load posts.");
+      } finally {
+        if (!controller.signal.aborted) {
+          loadingPostsRef.current = false;
+          setIsLoadingPosts(false);
+        }
+      }
+    };
+
+    void doFetch();
+
+    return () => {
+      controller.abort();
+      loadingPostsRef.current = false;
+    };
+  }, [feed, sort, timeframe]);
+
+  // ------------------------------------------------------------------
+  // Effect: fetch comments when selectedPost changes
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const controller = new AbortController();
+
+    // Reset comments
+    setComments([]);
+    setCommentsAfter(null);
+    setHasMoreComments(true);
+    setCommentsError(null);
+    commentsAfterRef.current = null;
+    loadingCommentsRef.current = false;
+
+    if (!selectedPost?.permalink) return;
+
+    const permalink = selectedPost.permalink;
+
+    const doFetch = async () => {
+      loadingCommentsRef.current = true;
+      setIsLoadingComments(true);
+      setCommentsError(null);
+
+      try {
+        const url = buildCommentsUrl(permalink, null);
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const json = await res.json();
+        if (controller.signal.aborted) return;
+
+        if (!Array.isArray(json) || json.length < 2) {
+          setComments([]);
+          setHasMoreComments(false);
+          return;
+        }
+
+        const commentListing = json[1];
+        const children = commentListing?.data?.children ?? [];
+        const nextAfter: string | null = commentListing?.data?.after ?? null;
+
+        const newComments: FlatComment[] = children.flatMap(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (c: any) => parseCommentNode(c, 0),
+        );
+
+        commentsAfterRef.current = nextAfter;
+        setCommentsAfter(nextAfter);
+        setHasMoreComments(nextAfter !== null);
+        setComments(newComments);
+      } catch (err: unknown) {
+        if ((err as Error).name === "AbortError") return;
+        if (controller.signal.aborted) return;
+        console.error("[useReddit] comments fetch error:", err);
+        setCommentsError("Could not load replies.");
+      } finally {
+        if (!controller.signal.aborted) {
+          loadingCommentsRef.current = false;
+          setIsLoadingComments(false);
+        }
+      }
+    };
+
+    void doFetch();
+
+    return () => {
+      controller.abort();
+      loadingCommentsRef.current = false;
+    };
+  }, [selectedPost?.id, selectedPost?.permalink]);
+
+  // ------------------------------------------------------------------
+  // loadMorePosts — append next page
+  // ------------------------------------------------------------------
+  const loadMorePosts = useCallback(() => {
+    if (loadingPostsRef.current || !afterRef.current) return;
+
+    const currentAfter = afterRef.current;
+    loadingPostsRef.current = true;
+    setIsLoadingPosts(true);
+
+    const controller = new AbortController();
+
+    const doFetch = async () => {
+      try {
+        const url = buildPostsUrl(
+          feedRef.current,
+          sortRef.current,
+          timeframeRef.current,
+          currentAfter,
+        );
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const json = await res.json();
+        if (controller.signal.aborted) return;
 
         const children = json?.data?.children ?? [];
         const nextAfter: string | null = json?.data?.after ?? null;
@@ -295,60 +427,50 @@ export function useReddit(
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
 
-        if (append) {
-          setPosts((prev) => {
-            const existingIds = new Set(prev.map((p) => p.id));
-            const unique = newPosts.filter((p) => !existingIds.has(p.id));
-            return [...prev, ...unique];
-          });
-        } else {
-          setPosts(newPosts);
-        }
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const unique = newPosts.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...unique];
+        });
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        if (requestId !== postRequestIdRef.current) return;
-        console.error("[useReddit] posts fetch error:", err);
-        setPostsError("Could not load posts.");
+        console.error("[useReddit] load more posts error:", err);
+        setPostsError("Could not load more posts.");
       } finally {
-        if (requestId === postRequestIdRef.current) {
+        if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
           setIsLoadingPosts(false);
         }
       }
-    },
-    [],
-  );
+    };
+
+    void doFetch();
+  }, []);
 
   // ------------------------------------------------------------------
-  // fetchComments — core function
+  // loadMoreComments — append next page
   // ------------------------------------------------------------------
-  const fetchComments = useCallback(
-    async (
-      permalink: string,
-      afterToken: string | null,
-      append: boolean,
-    ) => {
-      if (loadingCommentsRef.current) return;
+  const loadMoreComments = useCallback(() => {
+    if (loadingCommentsRef.current || !commentsAfterRef.current) return;
+    const permalink = selectedPostRef.current?.permalink;
+    if (!permalink) return;
 
-      const requestId = ++commentRequestIdRef.current;
-      loadingCommentsRef.current = true;
-      setIsLoadingComments(true);
-      setCommentsError(null);
+    const currentAfter = commentsAfterRef.current;
+    loadingCommentsRef.current = true;
+    setIsLoadingComments(true);
 
-      commentsAbortRef.current?.abort();
-      const controller = new AbortController();
-      commentsAbortRef.current = controller;
+    const controller = new AbortController();
 
+    const doFetch = async () => {
       try {
-        const url = buildCommentsUrl(permalink, afterToken);
+        const url = buildCommentsUrl(permalink, currentAfter);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const json = await res.json();
-        if (requestId !== commentRequestIdRef.current) return;
+        if (controller.signal.aborted) return;
 
         if (!Array.isArray(json) || json.length < 2) {
-          if (!append) setComments([]);
           setHasMoreComments(false);
           commentsAfterRef.current = null;
           setCommentsAfter(null);
@@ -368,101 +490,84 @@ export function useReddit(
         setCommentsAfter(nextAfter);
         setHasMoreComments(nextAfter !== null);
 
-        if (append) {
-          setComments((prev) => {
-            const existingIds = new Set(prev.map((c) => c.id));
-            const unique = newComments.filter((c) => !existingIds.has(c.id));
-            return [...prev, ...unique];
-          });
-        } else {
-          setComments(newComments);
-        }
+        setComments((prev) => {
+          const existingIds = new Set(prev.map((c) => c.id));
+          const unique = newComments.filter((c) => !existingIds.has(c.id));
+          return [...prev, ...unique];
+        });
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        if (requestId !== commentRequestIdRef.current) return;
-        console.error("[useReddit] comments fetch error:", err);
-        setCommentsError("Could not load replies.");
+        console.error("[useReddit] load more comments error:", err);
+        setCommentsError("Could not load more replies.");
       } finally {
-        if (requestId === commentRequestIdRef.current) {
+        if (!controller.signal.aborted) {
           loadingCommentsRef.current = false;
           setIsLoadingComments(false);
         }
       }
-    },
-    [],
-  );
+    };
+
+    void doFetch();
+  }, []);
 
   // ------------------------------------------------------------------
-  // Effect: reset + fetch when feed/sort/timeframe changes
+  // refreshPosts — force re-fetch from page 1
   // ------------------------------------------------------------------
-  useEffect(() => {
-    const key = `${feed}::${sort}::${timeframe}`;
-    if (feedKeyRef.current === key) return;
-    feedKeyRef.current = key;
-
-    // Reset posts state
-    setPosts([]);
-    setAfter(null);
-    setHasMorePosts(true);
-    setPostsError(null);
-    afterRef.current = null;
-    loadingPostsRef.current = false;
-
-    // Cancel in-flight
-    postsAbortRef.current?.abort();
-    postsAbortRef.current = null;
-
-    void fetchPosts(feed, sort, timeframe, null, false);
-  }, [feed, sort, timeframe, fetchPosts]);
-
-  // ------------------------------------------------------------------
-  // Effect: reset + fetch comments when selectedPost changes
-  // ------------------------------------------------------------------
-  useEffect(() => {
-    // Reset comments
-    setComments([]);
-    setCommentsAfter(null);
-    setHasMoreComments(true);
-    setCommentsError(null);
-    commentsAfterRef.current = null;
-    loadingCommentsRef.current = false;
-
-    // Cancel in-flight
-    commentsAbortRef.current?.abort();
-    commentsAbortRef.current = null;
-
-    if (selectedPost?.permalink) {
-      void fetchComments(selectedPost.permalink, null, false);
-    }
-  }, [selectedPost?.id, selectedPost?.permalink, fetchComments]);
-
-  // ------------------------------------------------------------------
-  // Public methods
-  // ------------------------------------------------------------------
-  const loadMorePosts = useCallback(() => {
-    if (loadingPostsRef.current || !afterRef.current) return;
-    void fetchPosts(feed, sort, timeframe, afterRef.current, true);
-  }, [feed, sort, timeframe, fetchPosts]);
-
-  const loadMoreComments = useCallback(() => {
-    if (loadingCommentsRef.current || !commentsAfterRef.current || !selectedPost?.permalink) return;
-    void fetchComments(selectedPost.permalink, commentsAfterRef.current, true);
-  }, [selectedPost?.permalink, fetchComments]);
-
   const refreshPosts = useCallback(() => {
-    // Force reset the key so the effect re-fires
-    feedKeyRef.current = "";
+    // Reset state and re-trigger the effect by... we can't retrigger easily.
+    // Instead, directly fetch.
     setPosts([]);
     setAfter(null);
     setHasMorePosts(true);
     setPostsError(null);
     afterRef.current = null;
     loadingPostsRef.current = false;
-    postsAbortRef.current?.abort();
-    postsAbortRef.current = null;
 
-    void fetchPosts(feed, sort, timeframe, null, false);
-  }, [feed, sort, timeframe, fetchPosts]);
+    const controller = new AbortController();
+    setIsLoadingPosts(true);
+
+    const doFetch = async () => {
+      try {
+        const url = buildPostsUrl(
+          feedRef.current,
+          sortRef.current,
+          timeframeRef.current,
+          null,
+        );
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const json = await res.json();
+        if (controller.signal.aborted) return;
+
+        const children = json?.data?.children ?? [];
+        const nextAfter: string | null = json?.data?.after ?? null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newPosts: Post[] = children
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((c: any) => c.kind === "t3")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((c: any) => parsePost(c.data));
+
+        afterRef.current = nextAfter;
+        setAfter(nextAfter);
+        setHasMorePosts(nextAfter !== null);
+        setPosts(newPosts);
+      } catch (err: unknown) {
+        if ((err as Error).name === "AbortError") return;
+        console.error("[useReddit] refresh error:", err);
+        setPostsError("Could not load posts.");
+      } finally {
+        if (!controller.signal.aborted) {
+          loadingPostsRef.current = false;
+          setIsLoadingPosts(false);
+        }
+      }
+    };
+
+    void doFetch();
+  }, []);
 
   return {
     posts,
@@ -482,3 +587,4 @@ export function useReddit(
     refreshPosts,
   };
 }
+
