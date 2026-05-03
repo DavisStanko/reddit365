@@ -8,6 +8,8 @@ export interface Post {
   comments: number;
   body: string;
   imageUrl?: string;
+  mediaUrl?: string;
+  mediaType?: "image" | "video";
   permalink?: string;
 }
 

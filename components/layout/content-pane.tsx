@@ -115,6 +115,8 @@ function CommentThread({ permalink }: { permalink: string }) {
 export function ContentPane() {
   const { mediaEnabled } = useSettings();
   const { selectedPost: post } = useAppContext();
+  const mediaUrl = post?.mediaUrl ?? post?.imageUrl;
+  const mediaType = post?.mediaType ?? "image";
 
   if (!post) {
     return (
@@ -182,14 +184,24 @@ export function ContentPane() {
           </span>
         </div>
 
-        {mediaEnabled && post.imageUrl && (
+        {mediaEnabled && mediaUrl && (
           <div className="reading-view__media">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={post.imageUrl}
-              alt={post.title}
-              className="reading-view__image"
-            />
+            {mediaType === "video" ? (
+              <video
+                className="reading-view__video"
+                controls
+                playsInline
+                preload="metadata"
+                src={mediaUrl}
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={mediaUrl}
+                alt={post.title}
+                className="reading-view__image"
+              />
+            )}
           </div>
         )}
 

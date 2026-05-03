@@ -1159,6 +1159,14 @@ body {
   border: 1px solid #ebebeb;
 }
 
+.reading-view__video {
+  width: 100%;
+  max-height: 480px;
+  border-radius: 8px;
+  background: #f5f5f5;
+  border: 1px solid #ebebeb;
+}
+
 /* Body */
 
 .reading-view__body {
