@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { Post, FlatComment } from "./sample-posts";
+import { getFallbackPosts, getFallbackComments } from "./fallback";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,7 +61,7 @@ function buildPostsUrl(
   }
 
   // Sort is part of URL path: /r/sub/hot.json, /r/sub/new.json, etc.
-  const url = new URL(`/reddit${basePath}/${sort}.json`, window.location.origin);
+  const url = new URL(`https://www.reddit.com${basePath}/${sort}.json`);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "25");
 
@@ -80,7 +81,7 @@ function buildCommentsUrl(
 ): string {
   // permalink looks like /r/subreddit/comments/abc123/slug/
   const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
-  const url = new URL(`/reddit${clean}.json`, window.location.origin);
+  const url = new URL(`https://www.reddit.com${clean}.json`);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "50");
   url.searchParams.set("sort", "confidence");
@@ -297,9 +298,13 @@ export function useReddit(
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        if (controller.signal.aborted) return;
-        console.error("[useReddit] posts fetch error:", err);
-        setPostsError("Could not load posts.");
+        console.warn("[useReddit] posts fetch blocked/failed, falling back to sample data:", err);
+        // Fallback
+        getFallbackPosts(subreddit).then((samplePosts) => {
+          setPosts(samplePosts);
+          setHasMorePosts(false);
+          setPostsError(null);
+        });
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
@@ -368,9 +373,13 @@ export function useReddit(
         setComments(newComments);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        if (controller.signal.aborted) return;
-        console.error("[useReddit] comments fetch error:", err);
-        setCommentsError("Could not load replies.");
+        console.warn("[useReddit] comments fetch failed, falling back:", err);
+        const p = selectedPost?.permalink || "";
+        getFallbackComments(p).then((sampleComments) => {
+          setComments(sampleComments);
+          setHasMoreComments(false);
+          setCommentsError(null); // Clear error
+        });
       } finally {
         if (!controller.signal.aborted) {
           loadingCommentsRef.current = false;
@@ -434,8 +443,8 @@ export function useReddit(
         });
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.error("[useReddit] load more posts error:", err);
-        setPostsError("Could not load more posts.");
+        console.warn("[useReddit] load more posts blocked/failed:", err);
+        setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
@@ -497,8 +506,8 @@ export function useReddit(
         });
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.error("[useReddit] load more comments error:", err);
-        setCommentsError("Could not load more replies.");
+        console.warn("[useReddit] load more comments blocked/failed:", err);
+        setHasMoreComments(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingCommentsRef.current = false;
@@ -556,8 +565,12 @@ export function useReddit(
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.error("[useReddit] refresh error:", err);
-        setPostsError("Could not load posts.");
+        console.warn("[useReddit] refresh blocked/failed, falling back to sample data:", err);
+        getFallbackPosts(subreddit).then((samplePosts) => {
+          setPosts(samplePosts);
+          setHasMorePosts(false);
+          setPostsError(null);
+        });
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
