@@ -4,17 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { RefreshCw, X, ChevronDown } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
-import type { SortMode, Timeframe } from "@/lib/use-reddit";
+import type { SortMode } from "@/lib/use-reddit";
 
-const SORT_OPTIONS: SortMode[] = ["hot", "new", "top", "rising"];
-const TIMEFRAMES: { value: Timeframe; label: string }[] = [
-  { value: "hour", label: "Past Hour" },
-  { value: "day", label: "Today" },
-  { value: "week", label: "This Week" },
-  { value: "month", label: "This Month" },
-  { value: "year", label: "This Year" },
-  { value: "all", label: "All Time" },
-];
+const SORT_OPTIONS: SortMode[] = ["hot", "new", "top"];
 
 export function PostList() {
   const {
@@ -23,8 +15,6 @@ export function PostList() {
     setSelectedPost,
     currentSort,
     setCurrentSort,
-    currentTimeframe,
-    setCurrentTimeframe,
   } = useAppContext();
 
   const {
@@ -37,16 +27,15 @@ export function PostList() {
   } = useRedditContext();
 
   const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Scroll to top when feed/sort/timeframe changes
+  // Scroll to top when feed/sort changes
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
-  }, [activeFeed, currentSort, currentTimeframe]);
+  }, [activeFeed, currentSort]);
 
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
@@ -68,13 +57,7 @@ export function PostList() {
     return () => observerRef.current?.disconnect();
   }, [loadMorePosts]);
 
-  // Close time dropdown on outside click
-  useEffect(() => {
-    if (!showTimeDropdown) return;
-    const handler = () => setShowTimeDropdown(false);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [showTimeDropdown]);
+
 
   return (
     <div className="post-list">
@@ -99,45 +82,6 @@ export function PostList() {
               </button>
             ))}
           </div>
-
-          {/* Time range picker — only visible when "top" is selected */}
-          {currentSort === "top" && (
-            <div
-              className="post-list__time-picker"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                className="post-list__time-btn"
-                onClick={() => setShowTimeDropdown(!showTimeDropdown)}
-                type="button"
-              >
-                {TIMEFRAMES.find((t) => t.value === currentTimeframe)?.label ??
-                  "Today"}
-                <ChevronDown size={12} />
-              </button>
-              {showTimeDropdown && (
-                <div className="post-list__time-dropdown">
-                  {TIMEFRAMES.map((tf) => (
-                    <button
-                      key={tf.value}
-                      className={`post-list__time-option${
-                        currentTimeframe === tf.value
-                          ? " post-list__time-option--active"
-                          : ""
-                      }`}
-                      onClick={() => {
-                        setCurrentTimeframe(tf.value);
-                        setShowTimeDropdown(false);
-                      }}
-                      type="button"
-                    >
-                      {tf.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="post-list__header-actions" aria-label="Mail list actions">

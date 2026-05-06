@@ -13,9 +13,7 @@ import { getFallbackPosts, getFallbackComments } from "./fallback";
 // Types
 // ---------------------------------------------------------------------------
 
-export type SortMode = "hot" | "new" | "top" | "rising";
-export type Timeframe = "hour" | "day" | "week" | "month" | "year" | "all";
-
+export type SortMode = "hot" | "new" | "top";
 export interface RedditState {
   posts: Post[];
   after: string | null;
@@ -43,7 +41,6 @@ export interface UseRedditReturn extends RedditState {
 function buildPostsUrl(
   feed: string,
   sort: SortMode,
-  timeframe: Timeframe,
   after: string | null,
 ): string {
   // "frontpage" is a virtual feed — use r/popular as placeholder
@@ -66,7 +63,7 @@ function buildPostsUrl(
   url.searchParams.set("limit", "25");
 
   if (sort === "top") {
-    url.searchParams.set("t", timeframe);
+    url.searchParams.set("t", "all");
   }
   if (after) {
     url.searchParams.set("after", after);
@@ -221,7 +218,6 @@ function parseCommentNode(node: any, depth: number): FlatComment[] {
 export function useReddit(
   feed: string,
   sort: SortMode,
-  timeframe: Timeframe,
   selectedPost: Post | null,
 ): UseRedditReturn {
   // ---- Posts state ----
@@ -247,12 +243,10 @@ export function useReddit(
   // Stable refs for current params (used by loadMore callbacks)
   const feedRef = useRef(feed);
   const sortRef = useRef(sort);
-  const timeframeRef = useRef(timeframe);
   const selectedPostRef = useRef(selectedPost);
 
   feedRef.current = feed;
   sortRef.current = sort;
-  timeframeRef.current = timeframe;
   selectedPostRef.current = selectedPost;
 
   // ------------------------------------------------------------------
@@ -275,7 +269,7 @@ export function useReddit(
       setPostsError(null);
 
       try {
-        const url = buildPostsUrl(feed, sort, timeframe, null);
+        const url = buildPostsUrl(feed, sort, null);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -319,7 +313,7 @@ export function useReddit(
       controller.abort();
       loadingPostsRef.current = false;
     };
-  }, [feed, sort, timeframe]);
+  }, [feed, sort]);
 
   // ------------------------------------------------------------------
   // Effect: fetch comments when selectedPost changes
@@ -413,7 +407,6 @@ export function useReddit(
         const url = buildPostsUrl(
           feedRef.current,
           sortRef.current,
-          timeframeRef.current,
           currentAfter,
         );
         const res = await fetch(url, { signal: controller.signal });
@@ -540,7 +533,6 @@ export function useReddit(
         const url = buildPostsUrl(
           feedRef.current,
           sortRef.current,
-          timeframeRef.current,
           null,
         );
         const res = await fetch(url, { signal: controller.signal });
