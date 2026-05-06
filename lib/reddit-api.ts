@@ -1,5 +1,40 @@
 import type { Post } from "./sample-posts";
 
+interface RedditPostData {
+  url_overridden_by_dest?: string;
+  url?: string;
+  is_video?: boolean;
+  secure_media?: {
+    reddit_video?: {
+      fallback_url?: string;
+    };
+  };
+  media?: {
+    reddit_video?: {
+      fallback_url?: string;
+    };
+  };
+  is_gallery?: boolean;
+  gallery_data?: {
+    items?: Array<{ media_id?: string }>;
+  };
+  media_metadata?: Record<string, { s?: { u?: string } }>;
+  preview?: {
+    images?: Array<{ source?: { url?: string } }>;
+  };
+}
+
+interface RedditSubredditNode {
+  kind?: string;
+  data?: {
+    display_name?: string;
+    url?: string;
+    subscribers?: number;
+    public_description?: string;
+    title?: string;
+  };
+}
+
 function unescapeRedditUrl(url: string): string {
   return url.replace(/&amp;/g, "&");
 }
@@ -9,7 +44,7 @@ function looksLikeImageUrl(url?: string): boolean {
 }
 
 function getPostMedia(
-  d: any,
+  d: RedditPostData,
 ): Pick<Post, "imageUrl" | "mediaUrl" | "mediaType"> {
   const directUrl = d.url_overridden_by_dest || d.url;
 
@@ -410,15 +445,13 @@ export async function fetchRedditSubreddits(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const json: any = await res.json();
-  const children = json?.data?.children ?? [];
+  const children: RedditSubredditNode[] = json?.data?.children ?? [];
   const nextAfter: string | null = json?.data?.after ?? null;
 
   const subreddits: SubredditListing[] = children
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((c: any) => c.kind === "t5")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((c: any): SubredditListing => {
-      const d = c.data;
+    .filter((c) => c.kind === "t5")
+    .map((c): SubredditListing => {
+      const d = c.data ?? {};
       const name = String(
         d.display_name ?? d.url?.replace(/^\/r\//, "") ?? "unknown",
       );

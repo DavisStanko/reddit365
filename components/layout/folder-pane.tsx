@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +10,7 @@ import {
   Hash,
 } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
+import type { SubredditListing } from "@/lib/reddit-api";
 
 interface SubredditItem {
   id: string;
@@ -34,6 +35,32 @@ const SUBSCRIBED: SubredditItem[] = [
   { id: "movies", label: "r/movies", icon: Hash },
   { id: "music", label: "r/music", icon: Hash },
 ];
+
+const INITIAL_SUBSCRIBED = SUBSCRIBED;
+
+function toSubredditItem(item: SubredditListing): SubredditItem {
+  return {
+    id: item.id,
+    label: item.label,
+    icon: Hash,
+  };
+}
+
+function mergeSubreddits(
+  current: SubredditItem[],
+  nextItems: SubredditItem[],
+): SubredditItem[] {
+  const seen = new Set(current.map((item) => item.id));
+  const merged = [...current];
+
+  for (const item of nextItems) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  return merged;
+}
 
 interface FolderGroupProps {
   title: string;
@@ -97,6 +124,76 @@ function FolderGroup({
 
 export function FolderPane() {
   const { activeFeed, setActiveFeed } = useAppContext();
+  const [subreddits, setSubreddits] =
+    useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
+  const [loading, setLoading] = useState(false);
+
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadingRef = useRef(false);
+  const afterRef = useRef<string | null>(null);
+
+  const loadSubreddits = useCallback(async (afterToken: string | null) => {
+    if (loadingRef.current) return;
+
+    loadingRef.current = true;
+    setLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+      if (afterToken) params.set("after", afterToken);
+
+      const response = await fetch(`/api/subreddits?${params.toString()}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = (await response.json()) as {
+        subreddits?: SubredditListing[];
+        after?: string | null;
+      };
+
+      const nextItems = (data.subreddits ?? []).map(toSubredditItem);
+      afterRef.current = data.after ?? null;
+      setSubreddits((current) => mergeSubreddits(current, nextItems));
+    } catch (error) {
+      console.error("[FolderPane]", error);
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      void loadSubreddits(null);
+    });
+  }, [loadSubreddits]);
+
+  useEffect(() => {
+    observerRef.current?.disconnect();
+
+    const root = contentRef.current;
+    if (!root) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          !loadingRef.current &&
+          afterRef.current
+        ) {
+          void loadSubreddits(afterRef.current);
+        }
+      },
+      { root, rootMargin: "200px" },
+    );
+
+    if (sentinelRef.current) {
+      observerRef.current.observe(sentinelRef.current);
+    }
+
+    return () => observerRef.current?.disconnect();
+  }, [loadSubreddits]);
 
   return (
     <aside className="folder-pane" aria-label="Subreddit folders">
@@ -107,7 +204,7 @@ export function FolderPane() {
         </button>
       </div>
 
-      <div className="folder-pane__content">
+      <div className="folder-pane__content" ref={contentRef}>
         <FolderGroup
           title="Favorites"
           items={FAVORITES}
@@ -116,10 +213,16 @@ export function FolderPane() {
         />
         <FolderGroup
           title="Subscriptions"
-          items={SUBSCRIBED}
+          items={subreddits}
           activeId={activeFeed}
           onSelect={setActiveFeed}
         />
+        <div
+          ref={sentinelRef}
+          className="folder-pane__sentinel"
+          aria-hidden="true"
+        />
+        {loading && <div className="folder-pane__loading" aria-hidden="true" />}
       </div>
     </aside>
   );
