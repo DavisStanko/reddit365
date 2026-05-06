@@ -378,7 +378,6 @@ export async function fetchRedditPosts(
     return { posts: mockPosts, after: null };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const json: any = await res.json();
   const children = json?.data?.children ?? [];
   const nextAfter: string | null = json?.data?.after ?? null;
@@ -514,7 +513,6 @@ export async function fetchRedditComments(
 
   const commentsData = json[1]?.data?.children ?? [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function mapComment(c: any): import("./sample-posts").RedditComment | null {
     if (c.kind !== "t1") return null; // t1 = comment
     const d = c.data;
@@ -522,7 +520,6 @@ export async function fetchRedditComments(
 
     let replies: import("./sample-posts").RedditComment[] = [];
     if (d.replies && d.replies.data && d.replies.data.children) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       replies = d.replies.data.children
         .map(mapComment)
         .filter(Boolean) as import("./sample-posts").RedditComment[];
