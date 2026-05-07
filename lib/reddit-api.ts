@@ -362,7 +362,9 @@ function normalizeFeedSubreddit(sub: string): string | null {
     return null;
   }
 
-  return sub.toLowerCase().startsWith("r/") ? sub.toLowerCase() : `r/${sub.toLowerCase()}`;
+  return sub.toLowerCase().startsWith("r/")
+    ? sub.toLowerCase()
+    : `r/${sub.toLowerCase()}`;
 }
 
 function parseFallbackOffset(after?: string | null): number {
@@ -381,22 +383,27 @@ async function buildFallbackPosts(
 
   const normalizedSub = normalizeFeedSubreddit(sub);
   const filtered = normalizedSub
-    ? SAMPLE_POSTS.filter((post) => post.subreddit.toLowerCase() === normalizedSub)
+    ? SAMPLE_POSTS.filter(
+        (post) => post.subreddit.toLowerCase() === normalizedSub,
+      )
     : SAMPLE_POSTS;
 
-  const basePosts = filtered.length > 0 ? filtered : [
-    {
-      id: 999,
-      title: `Welcome to ${normalizedSub ?? "r/all"} (Mock Data)`,
-      subreddit: normalizedSub ?? "r/all",
-      author: "mock_user",
-      time: "1m",
-      score: "1",
-      comments: 0,
-      body: "There are no sample posts for this feed. This is generated mock data so infinite scroll still works when Reddit is unavailable.",
-      permalink: `/${normalizedSub ?? "r/all"}/comments/mock`,
-    },
-  ];
+  const basePosts =
+    filtered.length > 0
+      ? filtered
+      : [
+          {
+            id: 999,
+            title: `Welcome to ${normalizedSub ?? "r/all"} (Mock Data)`,
+            subreddit: normalizedSub ?? "r/all",
+            author: "mock_user",
+            time: "1m",
+            score: "1",
+            comments: 0,
+            body: "There are no sample posts for this feed. This is generated mock data so infinite scroll still works when Reddit is unavailable.",
+            permalink: `/${normalizedSub ?? "r/all"}/comments/mock`,
+          },
+        ];
 
   const offset = parseFallbackOffset(after);
   const posts = Array.from({ length: Math.max(limit, 1) }, (_, index) => {
@@ -555,6 +562,10 @@ export async function fetchRedditComments(
     console.warn(
       `Reddit API error: ${res.status} ${res.statusText}. Falling back to sample comments.`,
     );
+    const { SAMPLE_COMMENTS } = await import("./sample-posts");
+    if (SAMPLE_COMMENTS[permalink]) {
+      return SAMPLE_COMMENTS[permalink];
+    }
     return [
       {
         id: "sample_comment_1",

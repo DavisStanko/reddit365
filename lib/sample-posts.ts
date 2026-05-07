@@ -22,6 +22,102 @@ export interface RedditComment {
   replies?: RedditComment[];
 }
 
+export const SAMPLE_COMMENTS: Record<string, RedditComment[]> = {
+  "/r/science/comments/1": [
+    {
+      id: "sci_1",
+      author: "space_nerd",
+      time: "2h",
+      score: "4.2k",
+      body: "It's absolutely mind-blowing that we are looking at light that left its source 4.6 billion years ago. That's before the Earth was even formed.",
+      replies: [
+        {
+          id: "sci_1_1",
+          author: "astro_phys_guy",
+          time: "1h",
+          score: "1.8k",
+          body: "Even crazier is that due to the expansion of the universe, the galaxies in this image are now over 13 billion light-years away from us.",
+        }
+      ]
+    },
+    {
+      id: "sci_2",
+      author: "optic_tech",
+      time: "3h",
+      score: "2.1k",
+      body: "The amount of engineering that went into making the NIRCam work perfectly after surviving a rocket launch and journey to L2 is arguably mankind's greatest technical achievement.",
+    }
+  ],
+  "/r/AskReddit/comments/2": [
+    {
+      id: "ask_1",
+      author: "keyboard_warrior",
+      time: "4h",
+      score: "8.9k",
+      body: "Learning keyboard shortcuts! Not just Ctrl+C/V, but things like Ctrl+Shift+T to reopen closed tabs, or Alt+Tab. Watching someone navigate a computer without touching the mouse always looks like magic.",
+    },
+    {
+      id: "ask_2",
+      author: "handy_andy",
+      time: "3h",
+      score: "6.5k",
+      body: "Basic troubleshooting. 'Did you turn it off and on again?' solves like 80% of problems.",
+    }
+  ],
+  "/r/todayilearned/comments/3": [
+    {
+      id: "til_1",
+      author: "sweet_tooth",
+      time: "6h",
+      score: "5.1k",
+      body: "So you're telling me I could literally spread 3000 year old Pharaoh honey on my toast and be completely fine?",
+      replies: [
+        {
+          id: "til_1_1",
+          author: "history_dork",
+          time: "5h",
+          score: "3.2k",
+          body: "Yes, though they typically wouldn't eat it out of respect for the artifacts. But chemically speaking, perfectly safe.",
+        }
+      ]
+    }
+  ],
+  "/r/programming/comments/4": [
+    {
+      id: "prog_1",
+      author: "senior_dev",
+      time: "1h",
+      score: "2.4k",
+      body: "Congratulations! That first deployment is a feeling you never forget. Welcome to the club.",
+    },
+    {
+      id: "prog_2",
+      author: "learner_404",
+      time: "2h",
+      score: "1.1k",
+      body: "How long did it take you to get comfortable with React? I've been struggling with useEffect for weeks.",
+    }
+  ],
+  "/r/funny/comments/6": [
+    {
+      id: "fun_1",
+      author: "dog_lover",
+      time: "45m",
+      score: "12.4k",
+      body: "You need to get a decoy keyboard. It's the only way.",
+      replies: [
+        {
+          id: "fun_1_1",
+          author: "cat_person_99",
+          time: "30m",
+          score: "8.2k",
+          body: "I tried! She knows. She somehow knows which one has the heat from the laptop battery.",
+        }
+      ]
+    }
+  ]
+};
+
 export const SAMPLE_POSTS: Post[] = [
   {
     id: 1,
@@ -39,8 +135,7 @@ The combined mass of this galaxy cluster acts as a gravitational lens, magnifyin
 Researchers say this image covers a patch of sky approximately the size of a grain of sand held at arm's length by someone on the ground — and yet it reveals thousands of galaxies, some of the faintest objects ever observed in infrared.
 
 The telescope's ability to peer back in time is giving astronomers unprecedented insight into the earliest stages of galaxy formation, just a few hundred million years after the Big Bang.`,
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Webb%27s_First_Deep_Field.jpg/1280px-Webb%27s_First_Deep_Field.jpg",
+    imageUrl: "/images/webb_deep_field.png",
     permalink: "/r/science/comments/1",
   },
   {
@@ -85,8 +180,7 @@ Bees also add an enzyme called glucose oxidase to honey, which produces hydrogen
 When archaeologists found 3,000-year-old honey in Egyptian tombs, they found it was perfectly preserved and still edible. The honey had crystallized, but once warmed, it was as good as fresh.
 
 Source: National Geographic, Smithsonian Magazine`,
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Runny_hunridge.jpg/1280px-Runny_hunridge.jpg",
+    imageUrl: "/images/honey_jar.png",
     permalink: "/r/todayilearned/comments/3",
   },
   {
@@ -169,8 +263,7 @@ The worst part? She only does this when I'm actively working. If I step away, sh
 Yesterday she managed to send a half-written Slack message to my entire team that just said "asdkjf;laskdjf;alskdfj cat here, taking over." I didn't even try to explain.
 
 I've accepted my fate. This is her desk now. I just work here.`,
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/1200px-Cat_November_2010-1a.jpg",
+    imageUrl: "/images/cat_on_keyboard.png",
     permalink: "/r/funny/comments/6",
   },
   {
