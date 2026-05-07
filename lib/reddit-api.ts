@@ -35,6 +35,38 @@ interface RedditSubredditNode {
   };
 }
 
+interface RedditPostNode {
+  kind?: string;
+  data: RedditPostData & {
+    title?: string;
+    subreddit?: string;
+    author?: string;
+    created_utc?: number;
+    score?: number;
+    num_comments?: number;
+    selftext?: string;
+    permalink?: string;
+  };
+}
+
+interface RedditCommentNode {
+  kind?: string;
+  data: {
+    id?: string;
+    author?: string;
+    created_utc?: number;
+    score?: number;
+    body?: string;
+    replies?:
+      | {
+          data?: {
+            children?: RedditCommentNode[];
+          };
+        }
+      | string;
+  };
+}
+
 function unescapeRedditUrl(url: string): string {
   return url.replace(/&amp;/g, "&");
 }
@@ -378,15 +410,18 @@ export async function fetchRedditPosts(
     return { posts: mockPosts, after: null };
   }
 
-  const json: any = await res.json();
+  const json = (await res.json()) as {
+    data?: {
+      children?: RedditPostNode[];
+      after?: string | null;
+    };
+  };
   const children = json?.data?.children ?? [];
   const nextAfter: string | null = json?.data?.after ?? null;
 
   const posts: Post[] = children
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((c: any) => c.kind === "t3") // text/link posts only
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((c: any, idx: number): Post => {
+    .filter((c) => c.kind === "t3") // text/link posts only
+    .map((c, idx: number): Post => {
       const d = c.data;
       const subreddit = `r/${d.subreddit}`;
       // Body: prefer selftext, fall back to url for link posts
@@ -505,21 +540,24 @@ export async function fetchRedditComments(
     ];
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json: any = await res.json();
+  const json = (await res.json()) as unknown;
 
   // Reddit returns an array of 2 items: [0] = post, [1] = comments
   if (!Array.isArray(json) || json.length < 2) return [];
 
-  const commentsData = json[1]?.data?.children ?? [];
+  const commentsData =
+    (json[1] as { data?: { children?: RedditCommentNode[] } } | undefined)?.data
+      ?.children ?? [];
 
-  function mapComment(c: any): import("./sample-posts").RedditComment | null {
+  function mapComment(
+    c: RedditCommentNode,
+  ): import("./sample-posts").RedditComment | null {
     if (c.kind !== "t1") return null; // t1 = comment
     const d = c.data;
     if (!d || !d.body) return null;
 
     let replies: import("./sample-posts").RedditComment[] = [];
-    if (d.replies && d.replies.data && d.replies.data.children) {
+    if (typeof d.replies !== "string" && d.replies?.data?.children) {
       replies = d.replies.data.children
         .map(mapComment)
         .filter(Boolean) as import("./sample-posts").RedditComment[];
@@ -535,7 +573,6 @@ export async function fetchRedditComments(
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return commentsData
     .map(mapComment)
     .filter(Boolean) as import("./sample-posts").RedditComment[];
