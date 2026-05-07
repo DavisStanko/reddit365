@@ -16,13 +16,12 @@ const RedditContext = createContext<UseRedditReturn | null>(null);
  * and exposes all fetched state to children.
  */
 export function RedditProvider({ children }: { children: ReactNode }) {
-  const { activeFeed, currentSort, currentTimeframe, selectedPost } =
+  const { activeFeed, currentSort, selectedPost } =
     useAppContext();
 
   const reddit = useReddit(
     activeFeed,
     currentSort,
-    currentTimeframe,
     selectedPost,
   );
 
