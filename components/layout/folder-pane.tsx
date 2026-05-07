@@ -197,13 +197,6 @@ export function FolderPane() {
 
   return (
     <aside className="folder-pane" aria-label="Subreddit folders">
-      <div className="folder-pane__compose">
-        <button className="folder-pane__compose-btn">
-          <span className="folder-pane__compose-btn-icon">+</span>
-          <span>New post</span>
-        </button>
-      </div>
-
       <div className="folder-pane__content" ref={contentRef}>
         <FolderGroup
           title="Favorites"
