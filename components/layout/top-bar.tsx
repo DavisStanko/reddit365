@@ -163,7 +163,7 @@ export function TopBar() {
       </div>
 
       <div className="top-bar__subheader">
-        <div className="top-bar__subheader-left">
+        <div className="top-bar__subheader-tabs">
           <button
             className="top-bar__menu-button"
             aria-label="Toggle navigation"
@@ -184,25 +184,27 @@ export function TopBar() {
           </nav>
         </div>
 
-        <div className="top-bar__commandbar" aria-label="Command bar">
-          {COMMANDS.map((command) => {
-            const Icon = command.icon;
-            return (
-              <button
-                key={command.label}
-                className={`top-bar__command-btn ${command.primary ? "top-bar__command-btn--primary" : ""}`}
-                type="button"
-              >
-                <Icon size={14} />
-                <span>{command.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <div className="top-bar__ribbon">
+          <div className="top-bar__commandbar" aria-label="Command bar">
+            {COMMANDS.map((command) => {
+              const Icon = command.icon;
+              return (
+                <button
+                  key={command.label}
+                  className={`top-bar__command-btn ${command.primary ? "top-bar__command-btn--primary" : ""}`}
+                  type="button"
+                >
+                  <Icon size={14} />
+                  <span>{command.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        <button className="top-bar__copilot" type="button" aria-label="Copilot">
-          <span className="top-bar__copilot-orb" />
-        </button>
+          <button className="top-bar__copilot" type="button" aria-label="Copilot">
+            <span className="top-bar__copilot-orb" />
+          </button>
+        </div>
       </div>
     </header>
   );
