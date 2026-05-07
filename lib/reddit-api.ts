@@ -67,6 +67,8 @@ interface RedditCommentNode {
   };
 }
 
+const FALLBACK_AFTER_PREFIX = "mock:";
+
 function unescapeRedditUrl(url: string): string {
   return url.replace(/&amp;/g, "&");
 }
@@ -355,6 +357,66 @@ export interface PostsResponse {
   after: string | null;
 }
 
+function normalizeFeedSubreddit(sub: string): string | null {
+  if (sub === "all" || sub === "frontpage" || sub === "popular") {
+    return null;
+  }
+
+  return sub.toLowerCase().startsWith("r/") ? sub.toLowerCase() : `r/${sub.toLowerCase()}`;
+}
+
+function parseFallbackOffset(after?: string | null): number {
+  if (!after?.startsWith(FALLBACK_AFTER_PREFIX)) return 0;
+
+  const offset = Number.parseInt(after.slice(FALLBACK_AFTER_PREFIX.length), 10);
+  return Number.isFinite(offset) && offset > 0 ? offset : 0;
+}
+
+async function buildFallbackPosts(
+  sub: string,
+  after: string | null | undefined,
+  limit: number,
+): Promise<PostsResponse> {
+  const { SAMPLE_POSTS } = await import("./sample-posts");
+
+  const normalizedSub = normalizeFeedSubreddit(sub);
+  const filtered = normalizedSub
+    ? SAMPLE_POSTS.filter((post) => post.subreddit.toLowerCase() === normalizedSub)
+    : SAMPLE_POSTS;
+
+  const basePosts = filtered.length > 0 ? filtered : [
+    {
+      id: 999,
+      title: `Welcome to ${normalizedSub ?? "r/all"} (Mock Data)`,
+      subreddit: normalizedSub ?? "r/all",
+      author: "mock_user",
+      time: "1m",
+      score: "1",
+      comments: 0,
+      body: "There are no sample posts for this feed. This is generated mock data so infinite scroll still works when Reddit is unavailable.",
+      permalink: `/${normalizedSub ?? "r/all"}/comments/mock`,
+    },
+  ];
+
+  const offset = parseFallbackOffset(after);
+  const posts = Array.from({ length: Math.max(limit, 1) }, (_, index) => {
+    const globalIndex = offset + index;
+    const source = basePosts[globalIndex % basePosts.length];
+    const cycle = Math.floor(globalIndex / basePosts.length);
+
+    return {
+      ...source,
+      id: 100000 + globalIndex,
+      author: cycle > 0 ? `${source.author}_${cycle}` : source.author,
+    };
+  });
+
+  return {
+    posts,
+    after: `${FALLBACK_AFTER_PREFIX}${offset + posts.length}`,
+  };
+}
+
 /** Fetch posts from Reddit's public JSON API (server-side use) */
 export async function fetchRedditPosts(
   sub: string,
@@ -380,34 +442,7 @@ export async function fetchRedditPosts(
     console.warn(
       `Reddit API error: ${res.status} ${res.statusText}. Falling back to sample posts.`,
     );
-    const { SAMPLE_POSTS } = await import("./sample-posts");
-
-    let mockPosts = [...SAMPLE_POSTS];
-    if (sub !== "all" && sub !== "frontpage" && sub !== "popular") {
-      const normalizedSub = sub.toLowerCase().startsWith("r/")
-        ? sub.toLowerCase()
-        : `r/${sub.toLowerCase()}`;
-      mockPosts = mockPosts.filter(
-        (p) => p.subreddit.toLowerCase() === normalizedSub,
-      );
-
-      if (mockPosts.length === 0) {
-        mockPosts = [
-          {
-            id: 999,
-            title: `Welcome to ${normalizedSub} (Mock Data)`,
-            subreddit: normalizedSub,
-            author: "mock_user",
-            time: "1m",
-            score: "1",
-            comments: 0,
-            body: "There are no sample posts for this specific subreddit. This is a generated mock post because Reddit API returned 403 Forbidden.",
-            permalink: `/${normalizedSub}/comments/mock`,
-          },
-        ];
-      }
-    }
-    return { posts: mockPosts, after: null };
+    return buildFallbackPosts(sub, after, limit);
   }
 
   const json = (await res.json()) as {
