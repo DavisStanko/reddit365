@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import {
   IconRail,
   TopBar,
+  Ribbon,
   FolderPane,
   ContentPane,
   ResizeHandle,
@@ -48,24 +49,30 @@ export default function Home() {
             {/* Icon rail — far left */}
             <IconRail />
 
-            {/* Folder pane — resizable */}
-            <div
-              className="outlook-shell__folder"
-              style={{ width: folderWidth }}
-            >
-              <FolderPane />
-            </div>
-            <ResizeHandle onResize={handleFolderResize} />
+            <div className="outlook-shell__main-area">
+              <Ribbon />
 
-            {/* Post list pane — resizable */}
-            <div className="outlook-shell__list" style={{ width: listWidth }}>
-              <PostList />
-            </div>
-            <ResizeHandle onResize={handleListResize} />
+              <div className="outlook-shell__panes">
+                {/* Folder pane — resizable */}
+                <div
+                  className="outlook-shell__folder"
+                  style={{ width: folderWidth }}
+                >
+                  <FolderPane />
+                </div>
+                <ResizeHandle onResize={handleFolderResize} />
 
-            {/* Content / reading pane — takes remaining space */}
-            <div className="outlook-shell__content">
-              <ContentPane />
+                {/* Post list pane — resizable */}
+                <div className="outlook-shell__list" style={{ width: listWidth }}>
+                  <PostList />
+                </div>
+                <ResizeHandle onResize={handleListResize} />
+
+                {/* Content / reading pane — takes remaining space */}
+                <div className="outlook-shell__content">
+                  <ContentPane />
+                </div>
+              </div>
             </div>
           </div>
         </div>
