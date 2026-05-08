@@ -8,6 +8,25 @@ import {
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
+import { Hash } from "lucide-react";
+
+export interface SubredditItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  unreadCount?: number;
+}
+
+const INITIAL_SUBSCRIBED: SubredditItem[] = [
+  { id: "askreddit", label: "r/AskReddit", icon: Hash, unreadCount: 42 },
+  { id: "worldnews", label: "r/worldnews", icon: Hash, unreadCount: 18 },
+  { id: "programming", label: "r/programming", icon: Hash, unreadCount: 7 },
+  { id: "technology", label: "r/technology", icon: Hash },
+  { id: "science", label: "r/science", icon: Hash },
+  { id: "gaming", label: "r/gaming", icon: Hash },
+  { id: "movies", label: "r/movies", icon: Hash },
+  { id: "music", label: "r/music", icon: Hash },
+];
 
 interface AppContextValue {
   /** Currently selected subreddit/feed id (matches FolderPane item ids) */
@@ -21,6 +40,12 @@ interface AppContextValue {
   /** Sort mode for current feed */
   sortMode: "hot" | "new" | "top";
   setSortMode: (mode: "hot" | "new" | "top") => void;
+
+  subreddits: SubredditItem[];
+  setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
+  addSubreddit: (name: string) => void;
+  removeSubreddit: (id: string) => void;
+  reorderSubreddits: (oldIndex: number, newIndex: number) => void;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -30,17 +55,45 @@ const AppContext = createContext<AppContextValue>({
   setSelectedPost: () => {},
   sortMode: "hot",
   setSortMode: () => {},
+  subreddits: INITIAL_SUBSCRIBED,
+  setSubreddits: () => {},
+  addSubreddit: () => {},
+  removeSubreddit: () => {},
+  reorderSubreddits: () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [sortMode, setSortMode] = useState<"hot" | "new" | "top">("hot");
+  const [subreddits, setSubreddits] = useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
   // When switching feeds, clear the selected post
   const setActiveFeed = useCallback((feed: string) => {
     setActiveFeedRaw(feed);
     setSelectedPost(null);
+  }, []);
+
+  const addSubreddit = useCallback((name: string) => {
+    const id = name.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (!id || subreddits.some(s => s.id === id)) return;
+    setSubreddits(prev => [
+      { id, label: `r/${name}`, icon: Hash },
+      ...prev
+    ]);
+  }, [subreddits]);
+
+  const removeSubreddit = useCallback((id: string) => {
+    setSubreddits(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  const reorderSubreddits = useCallback((oldIndex: number, newIndex: number) => {
+    setSubreddits(prev => {
+      const result = Array.from(prev);
+      const [removed] = result.splice(oldIndex, 1);
+      result.splice(newIndex, 0, removed);
+      return result;
+    });
   }, []);
 
   return (
@@ -52,6 +105,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedPost,
         sortMode,
         setSortMode,
+        subreddits,
+        setSubreddits,
+        addSubreddit,
+        removeSubreddit,
+        reorderSubreddits,
       }}
     >
       {children}
