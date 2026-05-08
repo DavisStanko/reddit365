@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { useAppContext } from "@/components/app-context";
+
 import {
   Menu,
   Mail,
@@ -32,6 +35,19 @@ const COMMANDS = [
 ];
 
 export function Ribbon() {
+  const { addSubreddit } = useAppContext();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newSubreddit, setNewSubreddit] = useState("");
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newSubreddit.trim()) {
+      addSubreddit(newSubreddit.trim());
+      setNewSubreddit("");
+      setShowAddDialog(false);
+    }
+  };
+
   return (
     <div className="ribbon" role="toolbar" aria-label="Ribbon">
       <div className="ribbon__tabs-row">
@@ -56,11 +72,13 @@ export function Ribbon() {
         <div className="ribbon__commandbar" aria-label="Command bar">
           {COMMANDS.map((command) => {
             const Icon = command.icon;
+            const isNewMail = command.label === "New mail";
             return (
               <button
                 key={command.label}
                 className={`ribbon__command-btn ${command.primary ? "ribbon__command-btn--primary" : ""}`}
                 type="button"
+                onClick={isNewMail ? () => setShowAddDialog(true) : undefined}
               >
                 <Icon size={14} />
                 <span>{command.label}</span>
@@ -74,6 +92,33 @@ export function Ribbon() {
           <span className="ribbon__copilot-orb" />
         </button>
       </div>
+
+      {showAddDialog && (
+        <div className="outlook-dialog-overlay" onClick={() => setShowAddDialog(false)}>
+          <div className="outlook-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="outlook-dialog__header">
+              <h3>Add Subreddit</h3>
+              <button type="button" className="outlook-dialog__close" onClick={() => setShowAddDialog(false)}>×</button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="outlook-dialog__body">
+              <label htmlFor="subreddit-input" className="outlook-dialog__label">Subreddit Name (without r/)</label>
+              <input
+                id="subreddit-input"
+                type="text"
+                autoFocus
+                placeholder="e.g. reactjs"
+                value={newSubreddit}
+                onChange={(e) => setNewSubreddit(e.target.value)}
+                className="outlook-dialog__input"
+              />
+              <div className="outlook-dialog__footer">
+                <button type="button" className="outlook-dialog__btn" onClick={() => setShowAddDialog(false)}>Cancel</button>
+                <button type="submit" className="outlook-dialog__btn-primary">Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
