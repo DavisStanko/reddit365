@@ -1346,3 +1346,168 @@ body {
   color: var(--outlook-text-tertiary);
   letter-spacing: 0.3px;
 }
+
+/* Dialog Styles */
+.outlook-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.outlook-dialog {
+  background: #ffffff;
+  border-radius: 4px;
+  width: 320px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.outlook-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--outlook-border);
+}
+
+.outlook-dialog__header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--outlook-text-primary);
+}
+
+.outlook-dialog__close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--outlook-text-secondary);
+  cursor: pointer;
+}
+
+.outlook-dialog__close:hover {
+  color: var(--outlook-text-primary);
+}
+
+.outlook-dialog__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.outlook-dialog__label {
+  font-size: 12px;
+  color: var(--outlook-text-primary);
+}
+
+.outlook-dialog__input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--outlook-border);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.outlook-dialog__input:focus {
+  outline: none;
+  border-color: var(--outlook-blue);
+}
+
+.outlook-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.outlook-dialog__btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--outlook-border);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--outlook-text-primary);
+}
+
+.outlook-dialog__btn:hover {
+  background: #f5f5f5;
+}
+
+.outlook-dialog__btn-primary {
+  padding: 6px 12px;
+  background: var(--outlook-blue);
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.outlook-dialog__btn-primary:hover {
+  background: var(--outlook-blue-hover);
+}
+
+/* Folder Item More Menu */
+.folder-item__more {
+  margin-left: auto;
+  opacity: 0;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+  position: relative;
+}
+
+.folder-item:hover .folder-item__more,
+.folder-item__more:hover {
+  opacity: 1;
+}
+
+.folder-item__more:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.folder-item__more-icon {
+  color: var(--outlook-text-secondary);
+}
+
+.folder-item__menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: #ffffff;
+  border: 1px solid var(--outlook-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 4px;
+  z-index: 1000;
+  min-width: 120px;
+  padding: 4px 0;
+}
+
+.folder-item__menu-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--outlook-text-primary);
+  cursor: pointer;
+}
+
+.folder-item__menu-btn:hover {
+  background: #f5f5f5;
+}
