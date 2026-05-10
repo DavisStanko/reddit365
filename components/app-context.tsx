@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
-import type { TopTimeRange } from "@/lib/reddit-api";
 import { Hash } from "lucide-react";
 
 export interface SubredditItem {
@@ -42,10 +41,6 @@ interface AppContextValue {
   sortMode: "hot" | "new" | "top";
   setSortMode: (mode: "hot" | "new" | "top") => void;
 
-  /** Time range used when sorting by top */
-  topTimeRange: TopTimeRange;
-  setTopTimeRange: (range: TopTimeRange) => void;
-
   subreddits: SubredditItem[];
   setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
   addSubreddit: (name: string) => void;
@@ -60,8 +55,6 @@ const AppContext = createContext<AppContextValue>({
   setSelectedPost: () => {},
   sortMode: "hot",
   setSortMode: () => {},
-  topTimeRange: "day",
-  setTopTimeRange: () => {},
   subreddits: INITIAL_SUBSCRIBED,
   setSubreddits: () => {},
   addSubreddit: () => {},
@@ -73,7 +66,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [sortMode, setSortMode] = useState<"hot" | "new" | "top">("hot");
-  const [topTimeRange, setTopTimeRange] = useState<TopTimeRange>("day");
   const [subreddits, setSubreddits] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
@@ -120,8 +112,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedPost,
         sortMode,
         setSortMode,
-        topTimeRange,
-        setTopTimeRange,
         subreddits,
         setSubreddits,
         addSubreddit,
