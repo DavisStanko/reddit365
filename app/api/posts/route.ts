@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { fetchRedditPosts } from "@/lib/reddit-api";
+import { fetchRedditPosts, type SortMode } from "@/lib/reddit-api";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const data = await fetchRedditPosts(
       sub,
-      sort,
+      sort as SortMode,
       after,
       25,
       timeRange as never,

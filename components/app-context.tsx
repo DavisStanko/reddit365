@@ -65,13 +65,18 @@ const AppContext = createContext<AppContextValue>({
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [sortMode, setSortMode] = useState<"hot" | "new" | "top">("hot");
+  const [sortMode, setSortModeRaw] = useState<"hot" | "new" | "top">("hot");
   const [subreddits, setSubreddits] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
   // When switching feeds, clear the selected post
   const setActiveFeed = useCallback((feed: string) => {
     setActiveFeedRaw(feed);
+    setSelectedPost(null);
+  }, []);
+
+  const setSortMode = useCallback((mode: "hot" | "new" | "top") => {
+    setSortModeRaw(mode);
     setSelectedPost(null);
   }, []);
 

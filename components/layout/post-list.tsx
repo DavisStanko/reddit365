@@ -117,6 +117,10 @@ export function PostList() {
     afterRef.current = null;
     setError(null);
 
+    if (listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+
     void Promise.resolve().then(() => {
       void doFetch(activeFeed, sortMode, null, false);
     });
