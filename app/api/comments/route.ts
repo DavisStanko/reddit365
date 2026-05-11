@@ -15,10 +15,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const cursor = cursorParam ? Number.parseInt(cursorParam, 10) : 0;
     const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
     const comments = await fetchRedditComments(permalink, {
-      cursor: Number.isFinite(cursor) ? cursor : 0,
+      cursor: cursorParam,
       limit: Number.isFinite(limit) ? limit : undefined,
     });
     return NextResponse.json(comments);
