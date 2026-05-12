@@ -14,6 +14,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 The UI must be indistinguishable from real Outlook at a glance. Every layout decision, color, spacing, font, interaction, and animation should ask: *"Does this look exactly like New Outlook?"* If yes, ship it. If not, fix it.
 
+> **Source of Truth:** Refer to [`outlook-reference.png`](./outlook-reference.png) for the exact visual spec of what New Outlook looks like.
+
 The tab title is **"Outlook"** and the favicon mimics the Outlook logo. Users should feel like they are using Outlook at work while actually browsing Reddit.
 
 ---
