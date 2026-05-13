@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
+import type { SortMode, Timeframe } from "@/lib/use-reddit";
 import { Hash } from "lucide-react";
 
 export interface SubredditItem {
@@ -41,8 +42,12 @@ interface AppContextValue {
   setSelectedPost: (post: Post | null) => void;
 
   /** Sort mode for current feed */
-  sortMode: "hot" | "new" | "top";
-  setSortMode: (mode: "hot" | "new" | "top") => void;
+  currentSort: SortMode;
+  setCurrentSort: (mode: SortMode) => void;
+
+  /** Timeframe for "top" sort */
+  currentTimeframe: Timeframe;
+  setCurrentTimeframe: (tf: Timeframe) => void;
 
   subreddits: SubredditItem[];
   setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
@@ -56,8 +61,10 @@ const AppContext = createContext<AppContextValue>({
   setActiveFeed: () => {},
   selectedPost: null,
   setSelectedPost: () => {},
-  sortMode: "hot",
-  setSortMode: () => {},
+  currentSort: "hot",
+  setCurrentSort: () => {},
+  currentTimeframe: "day",
+  setCurrentTimeframe: () => {},
   subreddits: INITIAL_SUBSCRIBED,
   setSubreddits: () => {},
   addSubreddit: () => {},
@@ -68,7 +75,8 @@ const AppContext = createContext<AppContextValue>({
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [sortMode, setSortModeRaw] = useState<"hot" | "new" | "top">("hot");
+  const [currentSort, setCurrentSortRaw] = useState<SortMode>("hot");
+  const [currentTimeframe, setCurrentTimeframeRaw] = useState<Timeframe>("day");
   const [subreddits, setSubredditsRaw] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
@@ -116,8 +124,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedPost(null);
   }, []);
 
-  const setSortMode = useCallback((mode: "hot" | "new" | "top") => {
-    setSortModeRaw(mode);
+  const setCurrentSort = useCallback((mode: SortMode) => {
+    setCurrentSortRaw(mode);
+    setSelectedPost(null);
+  }, []);
+
+  const setCurrentTimeframe = useCallback((tf: Timeframe) => {
+    setCurrentTimeframeRaw(tf);
     setSelectedPost(null);
   }, []);
 
@@ -156,8 +169,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveFeed,
         selectedPost,
         setSelectedPost,
-        sortMode,
-        setSortMode,
+        currentSort,
+        setCurrentSort,
+        currentTimeframe,
+        setCurrentTimeframe,
         subreddits,
         setSubreddits,
         addSubreddit,

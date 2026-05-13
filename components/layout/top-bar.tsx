@@ -71,7 +71,7 @@ export function TopBar({ folderWidth = 220, listWidth = 340 }: TopBarProps) {
           <span className="top-bar__wordmark">Outlook</span>
         </div>
 
-        <div 
+        <div
           className="top-bar__search"
           style={{
             position: "absolute",

@@ -1,11 +1,8 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useRef,
-  useState,
-  type RefObject,
 } from "react";
 import {
   ArrowBigUp,
@@ -18,61 +15,10 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
-import type { Post } from "@/lib/sample-posts";
+import { useReddit } from "@/lib/use-reddit";
+import type { FlatComment } from "@/lib/sample-posts";
 
-interface Comment {
-  id: string;
-  author: string;
-  time: string;
-  score: string;
-  body: string;
-  depth: number;
-}
-
-function mapCommentNode(c: any, depth = 0): Comment[] {
-  if (c.kind !== "t1") return [];
-  const d = c.data;
-  if (!d || !d.body) return [];
-
-  let timeStr = "0m";
-  if (d.created_utc) {
-    const diffMs = Date.now() - d.created_utc * 1000;
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) timeStr = `${diffMins}m`;
-    else if (diffMins < 60 * 24) timeStr = `${Math.floor(diffMins / 60)}h`;
-    else timeStr = `${Math.floor(diffMins / (60 * 24))}d`;
-  }
-
-  let scoreStr = "0";
-  if (d.score !== undefined) {
-    if (d.score >= 1000) {
-      scoreStr = (d.score / 1000).toFixed(1) + "k";
-    } else {
-      scoreStr = String(d.score);
-    }
-  }
-
-  const comment: Comment = {
-    id: d.id ?? d.name ?? Math.random().toString(),
-    author: d.author ?? "unknown",
-    time: timeStr,
-    score: scoreStr,
-    body: d.body,
-    depth,
-  };
-
-  let replies: Comment[] = [];
-  const repliesData = d.replies as Record<string, unknown> | undefined;
-  if (typeof repliesData !== "string" && (repliesData?.data as any)?.children) {
-    replies = ((repliesData?.data as any)?.children as any[]).flatMap((reply: Record<string, unknown>) =>
-      mapCommentNode(reply, depth + 1)
-    );
-  }
-
-  return [comment, ...replies];
-}
-
-function CommentNodeUI({ comment }: { comment: Comment }) {
+function CommentNodeUI({ comment }: { comment: FlatComment }) {
   const depth = comment.depth;
   return (
     <div
@@ -106,112 +52,47 @@ function CommentNodeUI({ comment }: { comment: Comment }) {
   );
 }
 
-function CommentThread({
-  post,
-  scrollRootRef,
-}: {
-  post: Post;
-  scrollRootRef: RefObject<HTMLDivElement | null>;
-}) {
-  const [comments, setComments] = useState<Comment[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [commentsAfter, setCommentsAfter] = useState<string | null>(null);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function CommentThread() {
+  const { activeFeed, selectedPost, currentSort, currentTimeframe } =
+    useAppContext();
+
+  const {
+    comments,
+    isLoadingComments,
+    hasMoreComments,
+    commentsError,
+    loadMoreComments,
+  } = useReddit(activeFeed, currentSort, currentTimeframe, selectedPost);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const requestIdRef = useRef(0);
-  const loadingRef = useRef(false);
-  const afterRef = useRef<string | null>(null);
 
-  const loadComments = useCallback(
-    async (cursor: string | null, append: boolean) => {
-      if (!post.id || !post.subreddit) return;
-      if (loadingRef.current) return;
-
-      const requestId = ++requestIdRef.current;
-      setError(null);
-      loadingRef.current = true;
-      setIsLoadingComments(true);
-
-      try {
-        const subredditPath = post.subreddit.startsWith("r/") ? post.subreddit : `r/${post.subreddit}`;
-        let url = `https://www.reddit.com/${subredditPath}/comments/${post.id}.json?raw_json=1&limit=25`;
-        if (cursor) {
-          url += `&after=${cursor}`;
-        }
-
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const json = await res.json();
-        if (requestId !== requestIdRef.current) return;
-
-        if (!Array.isArray(json) || json.length < 2) {
-          if (!append) setComments([]);
-          return;
-        }
-
-        const commentData = json[1];
-        const nextAfter = commentData?.data?.after ?? null;
-        const children = commentData?.data?.children || [];
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newComments = children.flatMap((c: any) => mapCommentNode(c, 0));
-
-        afterRef.current = nextAfter;
-        setCommentsAfter(nextAfter);
-
-        setComments((prev) => (append ? [...prev, ...newComments] : newComments));
-      } catch (err) {
-        if (requestId !== requestIdRef.current) return;
-        console.error("Failed to load comments:", err);
-        setError("Could not load replies right now.");
-      } finally {
-        if (requestId !== requestIdRef.current) return;
-        loadingRef.current = false;
-        setIsLoadingComments(false);
-      }
-    },
-    [post.id, post.subreddit]
-  );
-
-  useEffect(() => {
-    // Initial load
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadComments(null, false);
-  }, [loadComments, post.id]);
-
+  // Infinite scroll for comments — observe sentinel within the reading-view scroll container
   useEffect(() => {
     observerRef.current?.disconnect();
 
-    const root = scrollRootRef.current;
+    // Walk up from sentinel to find the scrollable .reading-view ancestor
     const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
-    if (!root || !sentinel) return;
+    let scrollRoot: HTMLElement | null = sentinel.parentElement;
+    while (scrollRoot && !scrollRoot.classList.contains("reading-view")) {
+      scrollRoot = scrollRoot.parentElement;
+    }
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          !loadingRef.current &&
-          afterRef.current
-        ) {
-          void loadComments(afterRef.current, true);
+        if (entries[0].isIntersecting) {
+          loadMoreComments();
         }
       },
-      { root, rootMargin: "200px" }
+      { root: scrollRoot, rootMargin: "200px" },
     );
 
     observerRef.current.observe(sentinel);
 
-    return () => {
-      observerRef.current?.disconnect();
-    };
-  }, [loadComments, scrollRootRef]);
+    return () => observerRef.current?.disconnect();
+  }, [loadMoreComments]);
 
   return (
     <div
@@ -221,12 +102,12 @@ function CommentThread({
       <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
         Replies
       </h3>
-      {error && (
+      {commentsError && (
         <div
           style={{ color: "#a4262c", fontSize: "14px", marginBottom: "12px" }}
           role="alert"
         >
-          {error}
+          {commentsError}
         </div>
       )}
       {isLoadingComments && comments.length === 0 && (
@@ -236,7 +117,7 @@ function CommentThread({
           Loading replies...
         </div>
       )}
-      {!isLoadingComments && comments.length === 0 && !error && (
+      {!isLoadingComments && comments.length === 0 && !commentsError && (
         <div
           style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
         >
@@ -259,6 +140,19 @@ function CommentThread({
           }}
         >
           Loading more replies...
+        </div>
+      )}
+
+      {!isLoadingComments && !hasMoreComments && comments.length > 0 && (
+        <div
+          style={{
+            color: "var(--outlook-text-tertiary)",
+            fontSize: "13px",
+            marginTop: "16px",
+            textAlign: "center",
+          }}
+        >
+          — End of replies —
         </div>
       )}
     </div>
@@ -371,11 +265,7 @@ export function ContentPane() {
         </div>
 
         {post.permalink && (
-          <CommentThread
-            key={post.id}
-            post={post}
-            scrollRootRef={readingViewRef}
-          />
+          <CommentThread key={post.id} />
         )}
       </div>
     </section>

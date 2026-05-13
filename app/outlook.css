@@ -793,8 +793,13 @@ body {
 }
 
 @keyframes spin-icon {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .post-list__icon-spin {
@@ -958,6 +963,114 @@ body {
   margin: 12px 16px 0;
 }
 
+/* Post list — header main flex */
+
+.post-list__header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Post list — time range picker (for "top" sort) */
+
+.post-list__time-picker {
+  position: relative;
+}
+
+.post-list__time-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--outlook-border);
+  border-radius: 3px;
+  background: #ffffff;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--outlook-text-secondary);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+  white-space: nowrap;
+}
+
+.post-list__time-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.post-list__time-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 140px;
+  background: #ffffff;
+  border: 1px solid var(--outlook-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
+  z-index: 150;
+  overflow: hidden;
+  animation: settings-slide-in 120ms cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.post-list__time-option {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--outlook-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+
+.post-list__time-option:hover {
+  background: #f5f5f5;
+}
+
+.post-list__time-option--active {
+  color: var(--outlook-blue);
+  font-weight: 600;
+  background: #f0f6ff;
+}
+
+/* Post list — frontpage banner */
+
+.post-list__banner {
+  padding: 10px 16px;
+  background: #f0f6ff;
+  border-bottom: 1px solid var(--outlook-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--outlook-text-primary);
+  gap: 12px;
+}
+
+.post-list__banner-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--outlook-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background 100ms ease;
+}
+
+.post-list__banner-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 /* ========================================================================
    SETTINGS DROPDOWN
    ======================================================================== */
@@ -991,6 +1104,7 @@ body {
     opacity: 0;
     transform: translateY(-4px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1362,6 +1476,7 @@ body {
   0% {
     background-position: 200% 0;
   }
+
   100% {
     background-position: -200% 0;
   }

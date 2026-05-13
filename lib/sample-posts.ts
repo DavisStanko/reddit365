@@ -22,6 +22,15 @@ export interface RedditComment {
   replies?: RedditComment[];
 }
 
+export interface FlatComment {
+  id: string;
+  author: string;
+  time: string;
+  score: string;
+  body: string;
+  depth: number;
+}
+
 export const SAMPLE_COMMENTS: Record<string, RedditComment[]> = {
   "/r/science/comments/1": [
     {
