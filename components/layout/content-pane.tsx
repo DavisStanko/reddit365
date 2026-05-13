@@ -16,7 +16,7 @@ import {
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
-import type { FlatComment } from "@/lib/sample-posts";
+import type { FlatComment } from "@/lib/types";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
   const depth = comment.depth;
