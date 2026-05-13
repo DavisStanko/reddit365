@@ -16,13 +16,63 @@ import {
   Award,
   MoreHorizontal,
 } from "lucide-react";
-import type { RedditCommentPageItem } from "@/lib/reddit-api";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
+import type { Post } from "@/lib/sample-posts";
 
-type CommentItem = RedditCommentPageItem;
+interface Comment {
+  id: string;
+  author: string;
+  time: string;
+  score: string;
+  body: string;
+  depth: number;
+}
 
-function CommentNode({ comment }: { comment: CommentItem }) {
+function mapCommentNode(c: any, depth = 0): Comment[] {
+  if (c.kind !== "t1") return [];
+  const d = c.data;
+  if (!d || !d.body) return [];
+
+  let timeStr = "0m";
+  if (d.created_utc) {
+    const diffMs = Date.now() - d.created_utc * 1000;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) timeStr = `${diffMins}m`;
+    else if (diffMins < 60 * 24) timeStr = `${Math.floor(diffMins / 60)}h`;
+    else timeStr = `${Math.floor(diffMins / (60 * 24))}d`;
+  }
+
+  let scoreStr = "0";
+  if (d.score !== undefined) {
+    if (d.score >= 1000) {
+      scoreStr = (d.score / 1000).toFixed(1) + "k";
+    } else {
+      scoreStr = String(d.score);
+    }
+  }
+
+  const comment: Comment = {
+    id: d.id ?? d.name ?? Math.random().toString(),
+    author: d.author ?? "unknown",
+    time: timeStr,
+    score: scoreStr,
+    body: d.body,
+    depth,
+  };
+
+  let replies: Comment[] = [];
+  const repliesData = d.replies as Record<string, unknown> | undefined;
+  if (typeof repliesData !== "string" && (repliesData?.data as any)?.children) {
+    replies = ((repliesData?.data as any)?.children as any[]).flatMap((reply: Record<string, unknown>) =>
+      mapCommentNode(reply, depth + 1)
+    );
+  }
+
+  return [comment, ...replies];
+}
+
+function CommentNodeUI({ comment }: { comment: Comment }) {
   const depth = comment.depth;
   return (
     <div
@@ -48,7 +98,7 @@ function CommentNode({ comment }: { comment: CommentItem }) {
       </div>
       <div
         className="reading-view__comment-body"
-        style={{ fontSize: "14px", lineHeight: "1.5" }}
+        style={{ fontSize: "14px", lineHeight: "1.5", whiteSpace: "pre-wrap" }}
       >
         {comment.body}
       </div>
@@ -57,91 +107,93 @@ function CommentNode({ comment }: { comment: CommentItem }) {
 }
 
 function CommentThread({
-  permalink,
+  post,
   scrollRootRef,
 }: {
-  permalink: string;
+  post: Post;
   scrollRootRef: RefObject<HTMLDivElement | null>;
 }) {
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingComments, setLoadingComments] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [commentsAfter, setCommentsAfter] = useState<string | null>(null);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
+  const afterRef = useRef<string | null>(null);
+
+  // Reset comments when post changes
+  useEffect(() => {
+    setComments([]);
+    setCommentsAfter(null);
+    afterRef.current = null;
+    setError(null);
+  }, [post.id]);
 
   const loadComments = useCallback(
-    async (cursor: string | null, replace: boolean) => {
+    async (cursor: string | null, append: boolean) => {
+      if (!post.permalink) return;
+      if (loadingRef.current) return;
+
       const requestId = ++requestIdRef.current;
       setError(null);
-
-      if (replace) {
-        setLoadingComments(true);
-      } else {
-        setLoadingMore(true);
-      }
+      loadingRef.current = true;
+      setIsLoadingComments(true);
 
       try {
-        const params = new URLSearchParams({
-          permalink,
-          limit: "5",
-        });
-
+        const urlPath = post.permalink.endsWith("/")
+          ? post.permalink.slice(0, -1)
+          : post.permalink;
+        let url = `https://www.reddit.com${urlPath}.json?raw_json=1&limit=25`;
         if (cursor) {
-          params.set("cursor", cursor);
+          url += `&after=${cursor}`;
         }
 
-        const res = await fetch(`/api/comments?${params.toString()}`);
-
+        const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
 
-        const data = (await res.json()) as {
-          comments?: CommentItem[];
-          nextCursor?: string | null;
-        };
-
+        const json = await res.json();
         if (requestId !== requestIdRef.current) return;
 
-        const pageComments = Array.isArray(data.comments) ? data.comments : [];
-        setComments((prev) =>
-          replace ? pageComments : [...prev, ...pageComments],
-        );
-        setNextCursor(data.nextCursor ?? null);
+        if (!Array.isArray(json) || json.length < 2) {
+          if (!append) setComments([]);
+          return;
+        }
+
+        const commentData = json[1];
+        const nextAfter = commentData?.data?.after ?? null;
+        const children = commentData?.data?.children || [];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newComments = children.flatMap((c: any) => mapCommentNode(c, 0));
+
+        afterRef.current = nextAfter;
+        setCommentsAfter(nextAfter);
+
+        setComments((prev) => (append ? [...prev, ...newComments] : newComments));
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
         console.error("Failed to load comments:", err);
         setError("Could not load replies right now.");
       } finally {
         if (requestId !== requestIdRef.current) return;
-        if (replace) {
-          setLoadingComments(false);
-        } else {
-          setLoadingMore(false);
-        }
+        loadingRef.current = false;
+        setIsLoadingComments(false);
       }
     },
-    [permalink],
+    [post.permalink]
   );
 
   useEffect(() => {
-    requestIdRef.current += 1;
-    let active = true;
-
-    queueMicrotask(() => {
-      if (active) {
-        void loadComments(null, true);
-      }
-    });
-
-    return () => {
-      active = false;
-      requestIdRef.current += 1;
-    };
-  }, [loadComments, permalink]);
+    // Initial load
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadComments(null, false);
+  }, [loadComments, post.id]);
 
   useEffect(() => {
     observerRef.current?.disconnect();
@@ -155,14 +207,13 @@ function CommentThread({
       (entries) => {
         if (
           entries[0].isIntersecting &&
-          !loadingComments &&
-          !loadingMore &&
-          nextCursor
+          !loadingRef.current &&
+          afterRef.current
         ) {
-          void loadComments(nextCursor, false);
+          void loadComments(afterRef.current, true);
         }
       },
-      { root, rootMargin: "200px" },
+      { root, rootMargin: "200px" }
     );
 
     observerRef.current.observe(sentinel);
@@ -170,7 +221,7 @@ function CommentThread({
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [loadComments, loadingComments, loadingMore, nextCursor, scrollRootRef]);
+  }, [loadComments, scrollRootRef]);
 
   return (
     <div
@@ -188,29 +239,28 @@ function CommentThread({
           {error}
         </div>
       )}
-      {loadingComments && (
+      {isLoadingComments && comments.length === 0 && (
         <div
           style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
         >
           Loading replies...
         </div>
       )}
-      {!loadingComments && comments.length === 0 && (
+      {!isLoadingComments && comments.length === 0 && !error && (
         <div
           style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
         >
           No replies yet.
         </div>
       )}
-      {!loadingComments &&
-        comments.map((comment) => (
-          <CommentNode
-            key={`${comment.id}-${comment.depth}`}
-            comment={comment}
-          />
-        ))}
+
+      {comments.map((comment, idx) => (
+        <CommentNodeUI key={`${comment.id}-${idx}`} comment={comment} />
+      ))}
+
       <div ref={sentinelRef} aria-hidden="true" />
-      {loadingMore && (
+
+      {isLoadingComments && comments.length > 0 && (
         <div
           style={{
             color: "var(--outlook-text-secondary)",
@@ -324,24 +374,16 @@ export function ContentPane() {
           style={{
             paddingBottom: "24px",
             borderBottom: "1px solid var(--outlook-border)",
+            whiteSpace: "pre-wrap",
           }}
         >
-          {post.body.split("\n\n").map((paragraph, i) => (
-            <p key={i} className="reading-view__paragraph">
-              {paragraph.split(/(\*\*[^*]+\*\*)/).map((segment, j) => {
-                if (segment.startsWith("**") && segment.endsWith("**")) {
-                  return <strong key={j}>{segment.slice(2, -2)}</strong>;
-                }
-                return segment;
-              })}
-            </p>
-          ))}
+          {post.body}
         </div>
 
         {post.permalink && (
           <CommentThread
-            key={post.permalink}
-            permalink={post.permalink}
+            key={post.id}
+            post={post}
             scrollRootRef={readingViewRef}
           />
         )}
