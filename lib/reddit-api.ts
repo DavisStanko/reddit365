@@ -75,6 +75,9 @@ const FALLBACK_AFTER_PREFIX = "mock:";
 const COMMENT_PAGE_SIZE = 5;
 const COMMENT_CACHE_TTL_MS = 5 * 60 * 1000;
 const COMMENT_MORE_PAGE_SIZE = 20;
+const REDDIT_ORIGIN = "https://old.reddit.com";
+const REDDIT_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 export type SortMode = "hot" | "new" | "top";
 export type TopTimeRange = "hour" | "day" | "week" | "month" | "year" | "all";
@@ -519,7 +522,7 @@ async function buildFallbackPosts(
             time: "1m",
             score: "1",
             comments: 0,
-            body: "There are no sample posts for this feed. This is generated mock data so infinite scroll still works when Reddit is unavailable.",
+            body: "There are no sample posts for this feed. This is generated mock data so the message list still works when Reddit is unavailable.",
             permalink: `/${normalizedSub ?? "r/all"}/comments/mock`,
           },
         ];
@@ -654,18 +657,24 @@ async function loadInitialCommentPage(
     raw_json: "1",
     sort: "confidence",
   });
-  const url = `https://www.reddit.com${path}.json?${params.toString()}`;
+  const url = `${REDDIT_ORIGIN}${path}.json?${params.toString()}`;
 
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
-    },
-    next: { revalidate: 60 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        "User-Agent": REDDIT_USER_AGENT,
+      },
+      next: { revalidate: 60 },
+    });
+  } catch (err) {
+    console.warn("Reddit comments request failed. Falling back to sample comments.", err);
+    return fetchFallbackCommentPage(permalink, 0, limit);
+  }
 
   if (!res.ok) {
     console.warn(
-      `Reddit API error: ${res.status} ${res.statusText}. Falling back to sample comments.`,
+      `Reddit comments request failed: ${res.status} ${res.statusText}. Falling back to sample comments.`,
     );
     return fetchFallbackCommentPage(permalink, 0, limit);
   }
@@ -705,18 +714,24 @@ async function loadMoreCommentPage(cursor: string): Promise<RedditCommentPage> {
     children: pageChildren.join(","),
     raw_json: "1",
   });
-  const url = `https://www.reddit.com/api/morechildren.json?${params.toString()}`;
+  const url = `${REDDIT_ORIGIN}/api/morechildren.json?${params.toString()}`;
 
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
-    },
-    next: { revalidate: 60 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        "User-Agent": REDDIT_USER_AGENT,
+      },
+      next: { revalidate: 60 },
+    });
+  } catch (err) {
+    console.warn("Reddit more comments request failed.", err);
+    return { comments: [], nextCursor: null };
+  }
 
   if (!res.ok) {
     console.warn(
-      `Reddit API error: ${res.status} ${res.statusText}. Could not load more comments.`,
+      `Reddit more comments request failed: ${res.status} ${res.statusText}.`,
     );
     return { comments: [], nextCursor: null };
   }
@@ -786,17 +801,22 @@ export async function fetchRedditPosts(
     );
   }
 
-  const url = `https://www.reddit.com${path}?${params.toString()}`;
+  const url = `${REDDIT_ORIGIN}${path}?${params.toString()}`;
 
-  const res = await fetch(url, {
-    headers: {
-      // Reddit requires a descriptive User-Agent for API usage
-      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
-    },
-    ...(options?.refresh
-      ? { cache: "no-store" as const }
-      : { next: { revalidate: 60 } }), // cache for 60s in Next.js data cache
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        "User-Agent": REDDIT_USER_AGENT,
+      },
+      ...(options?.refresh
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: 60 } }),
+    });
+  } catch (err) {
+    console.warn("Reddit API request failed. Falling back to sample posts.", err);
+    return buildFallbackPosts(sub, after, limit, sort, timeRange);
+  }
 
   if (!res.ok) {
     console.warn(
@@ -853,14 +873,26 @@ export async function fetchRedditSubreddits(
   const params = new URLSearchParams({ limit: String(limit), raw_json: "1" });
   if (after) params.set("after", after);
 
-  const url = `https://www.reddit.com/subreddits/popular.json?${params.toString()}`;
+  const url = `${REDDIT_ORIGIN}/subreddits/popular.json?${params.toString()}`;
 
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "reddit365/1.0 (Next.js app; educational project)",
-    },
-    next: { revalidate: 60 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        "User-Agent": REDDIT_USER_AGENT,
+      },
+      next: { revalidate: 60 },
+    });
+  } catch (err) {
+    console.warn("Reddit subreddits request failed. Falling back to sample folders.", err);
+    const start = after ? Number.parseInt(after, 10) : 0;
+    const slice = FALLBACK_SUBREDDITS.slice(start, start + limit);
+    const nextAfter =
+      start + slice.length < FALLBACK_SUBREDDITS.length
+        ? String(start + slice.length)
+        : null;
+    return { subreddits: slice, after: nextAfter };
+  }
 
   if (!res.ok) {
     const start = after ? Number.parseInt(after, 10) : 0;
