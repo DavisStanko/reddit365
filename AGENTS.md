@@ -128,6 +128,7 @@ When adding real Reddit API integration, keep this shape — just replace the sa
 6. **Segoe UI everywhere.** Never deviate from the font stack.
 7. **Transitions should feel Fluent:** ~120ms ease for hover states, ~200ms cubic-bezier(0.4,0,0.2,1) for animated elements.
 8. **The top bar must always show "Outlook"** as the wordmark — not "Reddit365" (that's the page `<title>`). The disguise is the point.
+9. **Test every change.** Use the browser MCP to verify UI output and behavior, and iterate immediately if a mistake is found.
 
 ---
 
@@ -140,3 +141,17 @@ A feature is complete when:
 - It works with keyboard navigation (focus rings, `tabIndex`, `aria-*` attributes)
 - Resize handles still function after the change
 - The page `<title>` remains "Outlook" and the favicon remains the Outlook icon
+
+---
+
+## Feature Checklist
+
+To ensure all agents are aligned on the core feature set, here is the master list of features and their current implementation status. When adding or modifying features, please update this list:
+
+- [x] **Post Formatting**: Posts are formatted like emails. Title is subject line, body and media in the body, comments as replies. (Fully Implemented)
+- [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
+- [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
+- [ ] **Feed Fetching & Infinite Scroll**: Feed should fetch when selected, not a mass fetch on page load (e.g., when selecting a subreddit, load one page of posts). Respect the selected sorting option. Implement infinite scroll. (Partially Implemented - fetching works, infinite scroll/exact behavior needs verification)
+- [ ] **Subreddit List Persistence & Editing**: Subreddit list should persist via `localStorage` and be editable (new message icon to add sub, 3 dots to show delete, drag and drop). (Partially Implemented - local storage persistence exists, drag and drop / full editing UI needs work)
+- [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current without triggering rate limits. (Partially Implemented)
+- [ ] **OAuth Integration**: User can provide OAuth to get their own personalized frontpage shown. (Not Implemented)
