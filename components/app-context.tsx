@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Post } from "@/lib/sample-posts";
-import type { SortMode, Timeframe } from "@/lib/use-reddit";
+import type { SortMode } from "@/lib/use-reddit";
 import { Hash } from "lucide-react";
 
 export interface SubredditItem {
@@ -45,10 +45,6 @@ interface AppContextValue {
   currentSort: SortMode;
   setCurrentSort: (mode: SortMode) => void;
 
-  /** Timeframe for "top" sort */
-  currentTimeframe: Timeframe;
-  setCurrentTimeframe: (tf: Timeframe) => void;
-
   subreddits: SubredditItem[];
   setSubreddits: React.Dispatch<React.SetStateAction<SubredditItem[]>>;
   addSubreddit: (name: string) => void;
@@ -63,8 +59,6 @@ const AppContext = createContext<AppContextValue>({
   setSelectedPost: () => {},
   currentSort: "hot",
   setCurrentSort: () => {},
-  currentTimeframe: "day",
-  setCurrentTimeframe: () => {},
   subreddits: INITIAL_SUBSCRIBED,
   setSubreddits: () => {},
   addSubreddit: () => {},
@@ -76,7 +70,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [currentSort, setCurrentSortRaw] = useState<SortMode>("hot");
-  const [currentTimeframe, setCurrentTimeframeRaw] = useState<Timeframe>("day");
   const [subreddits, setSubredditsRaw] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
 
@@ -129,11 +122,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedPost(null);
   }, []);
 
-  const setCurrentTimeframe = useCallback((tf: Timeframe) => {
-    setCurrentTimeframeRaw(tf);
-    setSelectedPost(null);
-  }, []);
-
   const addSubreddit = useCallback(
     (name: string) => {
       const id = name.toLowerCase().replace(/[^a-z0-9_]/g, "");
@@ -171,8 +159,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedPost,
         currentSort,
         setCurrentSort,
-        currentTimeframe,
-        setCurrentTimeframe,
         subreddits,
         setSubreddits,
         addSubreddit,
