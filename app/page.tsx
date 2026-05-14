@@ -12,6 +12,7 @@ import {
 } from "@/components/layout";
 import { SettingsProvider } from "@/components/settings-context";
 import { AppProvider } from "@/components/app-context";
+import { RedditProvider } from "@/components/reddit-context";
 
 const MIN_FOLDER_WIDTH = 160;
 const MAX_FOLDER_WIDTH = 400;
@@ -40,43 +41,46 @@ export default function Home() {
   return (
     <AppProvider>
       <SettingsProvider>
-        <div className="outlook-shell">
-          {/* Top ribbon/nav bar */}
-          <TopBar folderWidth={folderWidth} listWidth={listWidth} />
+        <RedditProvider>
+          <div className="outlook-shell">
+            {/* Top ribbon/nav bar */}
+            <TopBar folderWidth={folderWidth} listWidth={listWidth} />
 
-          {/* Main body below the top bar */}
-          <div className="outlook-shell__body">
-            {/* Icon rail — far left */}
-            <IconRail />
+            {/* Main body below the top bar */}
+            <div className="outlook-shell__body">
+              {/* Icon rail — far left */}
+              <IconRail />
 
-            <div className="outlook-shell__main-area">
-              <Ribbon />
+              <div className="outlook-shell__main-area">
+                <Ribbon />
 
-              <div className="outlook-shell__panes">
-                {/* Folder pane — resizable */}
-                <div
-                  className="outlook-shell__folder"
-                  style={{ width: folderWidth }}
-                >
-                  <FolderPane />
-                </div>
-                <ResizeHandle onResize={handleFolderResize} />
+                <div className="outlook-shell__panes">
+                  {/* Folder pane — resizable */}
+                  <div
+                    className="outlook-shell__folder"
+                    style={{ width: folderWidth }}
+                  >
+                    <FolderPane />
+                  </div>
+                  <ResizeHandle onResize={handleFolderResize} />
 
-                {/* Post list pane — resizable */}
-                <div className="outlook-shell__list" style={{ width: listWidth }}>
-                  <PostList />
-                </div>
-                <ResizeHandle onResize={handleListResize} />
+                  {/* Post list pane — resizable */}
+                  <div className="outlook-shell__list" style={{ width: listWidth }}>
+                    <PostList />
+                  </div>
+                  <ResizeHandle onResize={handleListResize} />
 
-                {/* Content / reading pane — takes remaining space */}
-                <div className="outlook-shell__content">
-                  <ContentPane />
+                  {/* Content / reading pane — takes remaining space */}
+                  <div className="outlook-shell__content">
+                    <ContentPane />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </RedditProvider>
       </SettingsProvider>
     </AppProvider>
   );
 }
+

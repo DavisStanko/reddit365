@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, X, ChevronDown } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
-import { useReddit, type SortMode, type Timeframe } from "@/lib/use-reddit";
+import { useRedditContext } from "@/components/reddit-context";
+import type { SortMode, Timeframe } from "@/lib/use-reddit";
 
 const SORT_OPTIONS: SortMode[] = ["hot", "new", "top", "rising"];
 const TIMEFRAMES: { value: Timeframe; label: string }[] = [
@@ -33,7 +34,7 @@ export function PostList() {
     postsError,
     loadMorePosts,
     refreshPosts,
-  } = useReddit(activeFeed, currentSort, currentTimeframe, selectedPost);
+  } = useRedditContext();
 
   const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
