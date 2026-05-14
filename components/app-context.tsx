@@ -16,13 +16,12 @@ export interface SubredditItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  unreadCount?: number;
 }
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
-  { id: "askreddit", label: "r/AskReddit", icon: Hash, unreadCount: 42 },
-  { id: "worldnews", label: "r/worldnews", icon: Hash, unreadCount: 18 },
-  { id: "programming", label: "r/programming", icon: Hash, unreadCount: 7 },
+  { id: "askreddit", label: "r/AskReddit", icon: Hash },
+  { id: "worldnews", label: "r/worldnews", icon: Hash },
+  { id: "programming", label: "r/programming", icon: Hash },
   { id: "technology", label: "r/technology", icon: Hash },
   { id: "science", label: "r/science", icon: Hash },
   { id: "gaming", label: "r/gaming", icon: Hash },

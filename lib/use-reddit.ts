@@ -6,8 +6,22 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Post, FlatComment } from "./sample-posts";
+import type { Post, FlatComment, RedditComment } from "./sample-posts";
 import { getFallbackPosts, getFallbackComments } from "./fallback";
+
+function flattenRedditComments(comments: RedditComment[], depth = 0): FlatComment[] {
+  return comments.flatMap((c) => {
+    const flat: FlatComment = {
+      id: c.id,
+      author: c.author,
+      time: c.time,
+      score: c.score,
+      body: c.body,
+      depth,
+    };
+    return [flat, ...flattenRedditComments(c.replies || [], depth + 1)];
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -294,7 +308,7 @@ export function useReddit(
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] posts fetch blocked/failed, falling back to sample data:", err);
         // Fallback
-        getFallbackPosts(subreddit).then((samplePosts) => {
+        getFallbackPosts(feed).then((samplePosts) => {
           setPosts(samplePosts);
           setHasMorePosts(false);
           setPostsError(null);
@@ -370,7 +384,7 @@ export function useReddit(
         console.warn("[useReddit] comments fetch failed, falling back:", err);
         const p = selectedPost?.permalink || "";
         getFallbackComments(p).then((sampleComments) => {
-          setComments(sampleComments);
+          setComments(flattenRedditComments(sampleComments));
           setHasMoreComments(false);
           setCommentsError(null); // Clear error
         });
@@ -558,7 +572,7 @@ export function useReddit(
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] refresh blocked/failed, falling back to sample data:", err);
-        getFallbackPosts(subreddit).then((samplePosts) => {
+        getFallbackPosts(feedRef.current).then((samplePosts) => {
           setPosts(samplePosts);
           setHasMorePosts(false);
           setPostsError(null);

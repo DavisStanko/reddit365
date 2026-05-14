@@ -73,9 +73,6 @@ function SortableFolderItem({
       >
         <Icon size={16} className="folder-item__icon" />
         <span className="folder-item__label">{item.label}</span>
-        {item.unreadCount && (
-          <span className="folder-item__badge">{item.unreadCount}</span>
-        )}
         {onRemove && (
           <div
             className="folder-item__more"
