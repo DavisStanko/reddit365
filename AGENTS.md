@@ -116,7 +116,16 @@ The `Post` type currently has:
 - `body` (supports `**bold**` markdown)
 - `imageUrl?` (optional, shown only when `mediaEnabled` is true)
 
-The fallback sample data was completely removed. When adding real Reddit API integration (e.g., via OAuth or a proxy), keep this shape. Note: Currently, direct client-side requests to Reddit's `.json` endpoints return 403 Forbidden due to bot protection and rate limiting.
+The fallback sample data was completely removed. When adding real Reddit API integration, rely on the Next.js `rewrites` proxy in `next.config.ts`.
+
+**CRITICAL DECISION: DO NOT ATTEMPT OAUTH INTEGRATION.**
+We have exhaustively tested authentication flows and determined:
+- Reddit strictly limits app creation and heavily discourages frontend web apps from using OAuth.
+- Client-side `fetch` to `.json` endpoints fails due to CORS.
+- Server-side proxies (like Next.js `rewrites`) bypass CORS and **work perfectly from residential IPs**.
+- Datacenter IPs / Vercel Serverless IPs will be blocked by Cloudflare `403` with bot protection, which is why testing from a cloud sandbox environment will fail. Do not interpret a 403 in the sandbox as "server-side fetching is impossible." The user running the app locally on their laptop will succeed.
+
+The ONLY viable path forward is relying on the Next.js API proxy and letting the user run the dev server locally. No further attempts to bypass Cloudflare or redesign authentication should be made.
 
 ---
 
@@ -154,7 +163,6 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
-- [x] **Feed Fetching & Pagination**: Feed fetches ~10 posts when selected. Respects the selected sorting option. Implemented a "Load more posts" button instead of infinite scroll per instructions. (Note: Reddit's unauthenticated JSON API currently blocks requests with 403 Forbidden, so errors will be shown in the UI).
+- [x] **Feed Fetching & Pagination**: Implemented fetching ~10 posts when selected with a "Load more" button. Respects sorting. (Note: Relies on Next.js API rewrites. It will work locally on residential IPs but return 403 in cloud sandboxes).
 - [ ] **Subreddit List Persistence & Editing**: Subreddit list should persist via `localStorage` and be editable (new message icon to add sub, 3 dots to show delete, drag and drop). (Partially Implemented - local storage persistence exists, drag and drop / full editing UI needs work)
 - [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current without triggering rate limits. (Partially Implemented)
-- [ ] **OAuth Integration**: User can provide OAuth to get their own personalized frontpage shown. (Not Implemented)

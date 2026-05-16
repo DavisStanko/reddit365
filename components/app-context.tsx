@@ -52,7 +52,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue>({
-  activeFeed: "frontpage",
+  activeFeed: "popular",
   setActiveFeed: () => {},
   selectedPost: null,
   setSelectedPost: () => {},
@@ -66,7 +66,7 @@ const AppContext = createContext<AppContextValue>({
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [activeFeed, setActiveFeedRaw] = useState<string>("frontpage");
+  const [activeFeed, setActiveFeedRaw] = useState<string>("popular");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [currentSort, setCurrentSortRaw] = useState<SortMode>("hot");
   const [subreddits, setSubredditsRaw] =

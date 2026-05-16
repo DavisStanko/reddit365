@@ -71,7 +71,8 @@ function buildPostsUrl(
   }
 
   // Sort is part of URL path: /r/sub/hot.json, /r/sub/new.json, etc.
-  const url = new URL(`https://www.reddit.com${basePath}/${sort}.json`);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const url = new URL(`${baseUrl}/api/reddit${basePath}/${sort}.json`);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "10");
 
@@ -91,7 +92,8 @@ function buildCommentsUrl(
 ): string {
   // permalink looks like /r/subreddit/comments/abc123/slug/
   const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
-  const url = new URL(`https://www.reddit.com${clean}.json`);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const url = new URL(`${baseUrl}/api/reddit${clean}.json`);
   url.searchParams.set("raw_json", "1");
   url.searchParams.set("limit", "50");
   url.searchParams.set("sort", "confidence");
