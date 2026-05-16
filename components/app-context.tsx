@@ -8,7 +8,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { Post } from "@/lib/sample-posts";
+import type { Post } from "@/lib/types";
 import type { SortMode } from "@/lib/use-reddit";
 import { Hash } from "lucide-react";
 
