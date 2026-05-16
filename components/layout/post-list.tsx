@@ -28,34 +28,12 @@ export function PostList() {
 
   const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Scroll to top when feed/sort changes
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [activeFeed, currentSort]);
-
-  // Infinite scroll via IntersectionObserver
-  useEffect(() => {
-    observerRef.current?.disconnect();
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMorePosts();
-        }
-      },
-      { root: listRef.current, rootMargin: "200px" },
-    );
-
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
-    }
-
-    return () => observerRef.current?.disconnect();
-  }, [loadMorePosts]);
 
 
 
@@ -161,7 +139,16 @@ export function PostList() {
           );
         })}
 
-        <div ref={sentinelRef} className="post-list__sentinel" aria-hidden="true" />
+        {!isLoadingPosts && hasMorePosts && posts.length > 0 && (
+          <div className="post-list__load-more-wrapper">
+            <button
+              className="post-list__load-more-btn"
+              onClick={loadMorePosts}
+            >
+              Load more posts
+            </button>
+          </div>
+        )}
 
         {isLoadingPosts && (
           <div className="post-list__loading" aria-live="polite">
