@@ -6,8 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Post, FlatComment, RedditComment } from "./sample-posts";
-import { getFallbackPosts, getFallbackComments } from "./fallback";
+import type { Post, FlatComment, RedditComment } from "./types";
 
 function flattenRedditComments(comments: RedditComment[], depth = 0): FlatComment[] {
   return comments.flatMap((c) => {
@@ -74,7 +73,7 @@ function buildPostsUrl(
   // Sort is part of URL path: /r/sub/hot.json, /r/sub/new.json, etc.
   const url = new URL(`https://www.reddit.com${basePath}/${sort}.json`);
   url.searchParams.set("raw_json", "1");
-  url.searchParams.set("limit", "25");
+  url.searchParams.set("limit", "10");
 
   if (sort === "top") {
     url.searchParams.set("t", "all");
@@ -285,7 +284,10 @@ export function useReddit(
       try {
         const url = buildPostsUrl(feed, sort, null);
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
 
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -306,13 +308,9 @@ export function useReddit(
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] posts fetch blocked/failed, falling back to sample data:", err);
-        // Fallback
-        getFallbackPosts(feed).then((samplePosts) => {
-          setPosts(samplePosts);
-          setHasMorePosts(false);
-          setPostsError(null);
-        });
+        console.warn("[useReddit] posts fetch failed:", err);
+        setPostsError(err instanceof Error ? err.message : String(err));
+        setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
@@ -355,7 +353,10 @@ export function useReddit(
       try {
         const url = buildCommentsUrl(permalink, null);
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
 
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -381,13 +382,9 @@ export function useReddit(
         setComments(newComments);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] comments fetch failed, falling back:", err);
-        const p = selectedPost?.permalink || "";
-        getFallbackComments(p).then((sampleComments) => {
-          setComments(flattenRedditComments(sampleComments));
-          setHasMoreComments(false);
-          setCommentsError(null); // Clear error
-        });
+        console.warn("[useReddit] comments fetch failed:", err);
+        setCommentsError(err instanceof Error ? err.message : String(err));
+        setHasMoreComments(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingCommentsRef.current = false;
@@ -424,7 +421,10 @@ export function useReddit(
           currentAfter,
         );
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
 
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -481,7 +481,10 @@ export function useReddit(
       try {
         const url = buildCommentsUrl(permalink, currentAfter);
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
 
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -550,7 +553,10 @@ export function useReddit(
           null,
         );
         const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
 
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -571,12 +577,9 @@ export function useReddit(
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] refresh blocked/failed, falling back to sample data:", err);
-        getFallbackPosts(feedRef.current).then((samplePosts) => {
-          setPosts(samplePosts);
-          setHasMorePosts(false);
-          setPostsError(null);
-        });
+        console.warn("[useReddit] refresh failed:", err);
+        setPostsError(err instanceof Error ? err.message : String(err));
+        setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;

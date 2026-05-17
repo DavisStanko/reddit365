@@ -111,12 +111,12 @@ When building UI, always use Outlook terminology in the interface, never Reddit 
 
 ## Data Layer
 
-Sample posts live in `lib/sample-posts.ts`. The `Post` type currently has:
+The `Post` type currently has:
 - `id`, `title`, `subreddit`, `author`, `time`, `score`, `comments`
 - `body` (supports `**bold**` markdown)
 - `imageUrl?` (optional, shown only when `mediaEnabled` is true)
 
-When adding real Reddit API integration, keep this shape — just replace the sample data source.
+The fallback sample data was completely removed. When adding real Reddit API integration (e.g., via OAuth or a proxy), keep this shape. Note: Currently, direct client-side requests to Reddit's `.json` endpoints return 403 Forbidden due to bot protection and rate limiting.
 
 ---
 
@@ -154,7 +154,7 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
-- [ ] **Feed Fetching & Infinite Scroll**: Feed should fetch when selected, not a mass fetch on page load (e.g., when selecting a subreddit, load one page of posts). Respect the selected sorting option. Implement infinite scroll. (Partially Implemented - fetching works, infinite scroll/exact behavior needs verification)
+- [x] **Feed Fetching & Pagination**: Feed fetches ~10 posts when selected. Respects the selected sorting option. Implemented a "Load more posts" button instead of infinite scroll per instructions. (Note: Reddit's unauthenticated JSON API currently blocks requests with 403 Forbidden, so errors will be shown in the UI).
 - [ ] **Subreddit List Persistence & Editing**: Subreddit list should persist via `localStorage` and be editable (new message icon to add sub, 3 dots to show delete, drag and drop). (Partially Implemented - local storage persistence exists, drag and drop / full editing UI needs work)
 - [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current without triggering rate limits. (Partially Implemented)
 - [ ] **OAuth Integration**: User can provide OAuth to get their own personalized frontpage shown. (Not Implemented)

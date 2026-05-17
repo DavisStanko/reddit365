@@ -1665,3 +1665,26 @@ body {
 .folder-item__menu-btn:hover {
   background: #f5f5f5;
 }
+
+/* Load More Button */
+.post-list__load-more-wrapper {
+  padding: 16px;
+  text-align: center;
+}
+
+.post-list__load-more-btn {
+  padding: 6px 16px;
+  background: var(--outlook-blue);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease;
+  font-family: inherit;
+}
+
+.post-list__load-more-btn:hover {
+  background: var(--outlook-blue-hover);
+}
