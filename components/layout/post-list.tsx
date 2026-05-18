@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, X, ChevronDown } from "lucide-react";
+import { RefreshCw, ChevronDown } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { SortMode } from "@/lib/use-reddit";
@@ -26,16 +26,12 @@ export function PostList() {
     refreshPosts,
   } = useRedditContext();
 
-  const [showFrontpageBanner, setShowFrontpageBanner] = useState(true);
-
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll to top when feed/sort changes
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [activeFeed, currentSort]);
-
-
 
   return (
     <div className="post-list">
@@ -83,19 +79,6 @@ export function PostList() {
       </div>
 
       <div ref={listRef} className="post-list__items" role="list">
-        {activeFeed === "frontpage" && showFrontpageBanner && (
-          <div className="post-list__banner">
-            <span>Sign in with Reddit to see your personal frontpage.</span>
-            <button
-              onClick={() => setShowFrontpageBanner(false)}
-              aria-label="Dismiss banner"
-              className="post-list__banner-close"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
         {postsError && (
           <div className="post-list__error" role="alert">
             {postsError}
