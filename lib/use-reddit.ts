@@ -344,7 +344,7 @@ export function useReddit(
             }
 
             let bodyText = tmp.textContent || tmp.innerText || "";
-            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
+            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
             
             return {
@@ -559,7 +559,7 @@ export function useReddit(
             }
 
             let bodyText = tmp.textContent || tmp.innerText || "";
-            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
+            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
             
             return {

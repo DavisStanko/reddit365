@@ -867,6 +867,27 @@ body {
   background: #f7f9fc;
 }
 
+.post-item:hover .post-item__title {
+  color: var(--outlook-blue);
+  text-decoration: underline;
+}
+
+.post-item__sub:hover,
+.post-item__author:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.outlook-link {
+  color: var(--outlook-blue);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.outlook-link:hover {
+  text-decoration: underline;
+}
+
 .post-item__votes {
   display: flex;
   flex-direction: column;

@@ -105,9 +105,25 @@ export function PostList() {
               <div className="post-item__content">
                 <h3 className="post-item__title">{post.title}</h3>
                 <div className="post-item__meta">
-                  <span className="post-item__sub">{post.subreddit}</span>
+                  <a
+                    href={`https://reddit.com/r/${post.subreddit}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="post-item__sub"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {post.subreddit}
+                  </a>
                   <span className="post-item__dot">·</span>
-                  <span className="post-item__author">u/{post.author}</span>
+                  <a
+                    href={`https://reddit.com/u/${post.author}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="post-item__author"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    u/{post.author}
+                  </a>
                   <span className="post-item__dot">·</span>
                   <span className="post-item__time">{post.time}</span>
                 </div>
