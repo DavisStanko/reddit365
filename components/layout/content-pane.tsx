@@ -39,8 +39,7 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
         }}
       >
         <strong>u/{comment.author}</strong>{" "}
-        <span style={{ margin: "0 4px" }}>·</span> {comment.time}{" "}
-        <span style={{ margin: "0 4px" }}>·</span> {comment.score} points
+        <span style={{ margin: "0 4px" }}>·</span> {comment.time}
       </div>
       <div
         className="reading-view__comment-body"
@@ -96,9 +95,12 @@ function CommentThread() {
       className="reading-view__comments"
       style={{ marginTop: "24px", paddingBottom: "40px" }}
     >
-      <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
-        Replies
+      <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
+        Replies (Best)
       </h3>
+      <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px", marginBottom: "16px" }}>
+        Replies are displayed as a flat list due to API constraints.
+      </div>
       {commentsError && (
         <div
           style={{ color: "#a4262c", fontSize: "14px", marginBottom: "12px" }}
@@ -178,55 +180,32 @@ export function ContentPane() {
       aria-label="Content"
     >
       <div className="reading-view" ref={readingViewRef}>
-        <div className="reading-view__toolbar">
-          <div className="reading-view__toolbar-actions">
-            <button className="reading-view__toolbar-btn" title="Reply">
-              <MessageSquare size={16} />
-              <span>Reply</span>
-            </button>
-            <button className="reading-view__toolbar-btn" title="Share">
-              <Share2 size={16} />
-              <span>Share</span>
-            </button>
-            <button className="reading-view__toolbar-btn" title="Save">
-              <Bookmark size={16} />
-              <span>Save</span>
-            </button>
-            <button className="reading-view__toolbar-btn" title="Award">
-              <Award size={16} />
-              <span>Award</span>
-            </button>
-            <button className="reading-view__toolbar-btn" title="More">
-              <MoreHorizontal size={16} />
-            </button>
+        <div className="reading-view__header" style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--outlook-border)" }}>
+          <h1 className="reading-view__title" style={{ fontSize: "20px", fontWeight: "600", marginBottom: "20px" }}>
+            {post.permalink ? (
+              <a href={post.permalink} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
+                {post.title}
+              </a>
+            ) : (
+              post.title
+            )}
+          </h1>
+          <div className="reading-view__email-meta" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: "var(--outlook-blue)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", marginRight: "12px", fontWeight: "600", fontSize: "16px", flexShrink: 0 }}>
+                {post.author?.[0]?.toUpperCase() || "U"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <strong style={{ fontSize: "14px", color: "var(--outlook-text-primary)" }}>{post.author}</strong>
+                  <span style={{ fontSize: "12px", color: "var(--outlook-text-tertiary)" }}>{post.time}</span>
+                </div>
+                <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px" }}>
+                  To: {post.subreddit}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="reading-view__header">
-          <div className="reading-view__meta-row">
-            <span className="reading-view__subreddit">{post.subreddit}</span>
-            <span className="reading-view__dot">·</span>
-            <span className="reading-view__author">
-              Posted by u/{post.author}
-            </span>
-            <span className="reading-view__dot">·</span>
-            <span className="reading-view__time">{post.time}</span>
-          </div>
-          <h1 className="reading-view__title">{post.title}</h1>
-        </div>
-
-        <div className="reading-view__vote-bar">
-          <button className="reading-view__vote-btn" title="Upvote">
-            <ArrowBigUp size={20} />
-          </button>
-          <span className="reading-view__score">{post.score}</span>
-          <button className="reading-view__vote-btn" title="Downvote">
-            <ArrowBigDown size={20} />
-          </button>
-          <span className="reading-view__comment-count">
-            <MessageSquare size={14} />
-            {post.comments.toLocaleString()} comments
-          </span>
         </div>
 
         {mediaEnabled && mediaUrl && (

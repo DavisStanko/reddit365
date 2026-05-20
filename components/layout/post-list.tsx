@@ -102,9 +102,6 @@ export function PostList() {
                 }
               }}
             >
-              <div className="post-item__votes">
-                <span className="post-item__score">{post.score}</span>
-              </div>
               <div className="post-item__content">
                 <h3 className="post-item__title">{post.title}</h3>
                 <div className="post-item__meta">
@@ -113,9 +110,6 @@ export function PostList() {
                   <span className="post-item__author">u/{post.author}</span>
                   <span className="post-item__dot">·</span>
                   <span className="post-item__time">{post.time}</span>
-                </div>
-                <div className="post-item__stats">
-                  <span>{post.comments.toLocaleString()} comments</span>
                 </div>
               </div>
             </article>
