@@ -4,15 +4,6 @@ import {
   useEffect,
   useRef,
 } from "react";
-import {
-  ArrowBigUp,
-  ArrowBigDown,
-  MessageSquare,
-  Share2,
-  Bookmark,
-  Award,
-  MoreHorizontal,
-} from "lucide-react";
 import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
@@ -287,8 +278,5 @@ export function ContentPane() {
         )}
       </div>
     </section>
-  );
-}
-ction>
   );
 }

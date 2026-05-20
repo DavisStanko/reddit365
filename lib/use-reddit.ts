@@ -1,26 +1,14 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import {
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
-import type { Post, FlatComment, RedditComment } from "./types";
-
-function flattenRedditComments(comments: RedditComment[], depth = 0): FlatComment[] {
-  return comments.flatMap((c) => {
-    const flat: FlatComment = {
-      id: c.id,
-      author: c.author,
-      time: c.time,
-      score: c.score,
-      body: c.body,
-      depth,
-    };
-    return [flat, ...flattenRedditComments(c.replies || [], depth + 1)];
-  });
-}
+import type { Post, FlatComment } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -136,7 +124,6 @@ function looksLikeImage(url?: string): boolean {
   return !!url && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parsePost(d: any): Post {
   const subreddit = `r/${d.subreddit}`;
 
@@ -207,7 +194,6 @@ function parsePost(d: any): Post {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseCommentNode(node: any, depth: number): FlatComment[] {
   if (node.kind !== "t1") return [];
   const d = node.data;
@@ -225,8 +211,7 @@ function parseCommentNode(node: any, depth: number): FlatComment[] {
   let childComments: FlatComment[] = [];
   if (typeof d.replies !== "string" && d.replies?.data?.children) {
     childComments = d.replies.data.children.flatMap(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (child: any) => parseCommentNode(child, depth + 1),
+            (child: any) => parseCommentNode(child, depth + 1),
     );
   }
 
@@ -311,7 +296,7 @@ export function useReddit(
           const doc = parser.parseFromString(text, "text/xml");
           const entries = Array.from(doc.querySelectorAll("entry"));
           
-          newPosts = entries.map((entry, idx) => {
+          newPosts = entries.map((entry) => {
             const title = entry.querySelector("title")?.textContent || "Untitled";
             const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
             const link = entry.querySelector("link")?.getAttribute("href") || "";
@@ -366,12 +351,9 @@ export function useReddit(
           const children = json?.data?.children ?? [];
           nextAfter = json?.data?.after ?? null;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          newPosts = children
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .filter((c: any) => c.kind === "t3")
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((c: any) => parsePost(c.data));
+                    newPosts = children
+                        .filter((c: any) => c.kind === "t3")
+                        .map((c: any) => parsePost(c.data));
         }
 
         afterRef.current = nextAfter;
@@ -582,12 +564,9 @@ export function useReddit(
           const children = json?.data?.children ?? [];
           nextAfter = json?.data?.after ?? null;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          newPosts = children
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .filter((c: any) => c.kind === "t3")
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((c: any) => parsePost(c.data));
+                    newPosts = children
+                        .filter((c: any) => c.kind === "t3")
+                        .map((c: any) => parsePost(c.data));
         }
 
         afterRef.current = nextAfter;
@@ -652,8 +631,7 @@ export function useReddit(
         const nextAfter: string | null = commentListing?.data?.after ?? null;
 
         const newComments: FlatComment[] = children.flatMap(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (c: any) => parseCommentNode(c, 0),
+                    (c: any) => parseCommentNode(c, 0),
         );
 
         commentsAfterRef.current = nextAfter;
@@ -715,12 +693,9 @@ export function useReddit(
         const children = json?.data?.children ?? [];
         const nextAfter: string | null = json?.data?.after ?? null;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newPosts: Post[] = children
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.kind === "t3")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any) => parsePost(c.data));
+                const newPosts: Post[] = children
+                    .filter((c: any) => c.kind === "t3")
+                    .map((c: any) => parsePost(c.data));
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);

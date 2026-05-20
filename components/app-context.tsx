@@ -78,10 +78,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const restored = parsed.map((item: any) => ({
+          const restored = (parsed as Omit<SubredditItem, "icon">[]).map((item) => ({
             ...item,
             icon: Hash,
           }));
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setSubredditsRaw(restored);
         }
       }
@@ -94,9 +95,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (valOrFn: React.SetStateAction<SubredditItem[]>) => {
       setSubredditsRaw((prev) => {
         const next =
-          typeof valOrFn === "function" ? (valOrFn as Function)(prev) : valOrFn;
+          typeof valOrFn === "function" ? (valOrFn as (prev: SubredditItem[]) => SubredditItem[])(prev) : valOrFn;
         try {
-          const toSave = next.map(({ icon, ...rest }: SubredditItem) => rest);
+          const toSave = next.map((item: SubredditItem) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { icon: _, ...rest } = item;
+            return rest;
+          });
           localStorage.setItem(
             "reddit365_subscriptions",
             JSON.stringify(toSave)
@@ -107,7 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return next;
       });
     },
-    []
+    [setSubredditsRaw]
   );
 
   // When switching feeds, clear the selected post
@@ -130,12 +135,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...prev,
       ]);
     },
-    [subreddits],
+    [subreddits, setSubreddits],
   );
 
   const removeSubreddit = useCallback((id: string) => {
     setSubreddits((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  }, [setSubreddits]);
 
   const reorderSubreddits = useCallback(
     (oldIndex: number, newIndex: number) => {
@@ -146,7 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return result;
       });
     },
-    [],
+    [setSubreddits],
   );
 
   return (

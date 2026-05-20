@@ -7,7 +7,7 @@ interface ResizeHandleProps {
   className?: string;
 }
 
-export function ResizeHandle({ onResize, className = "" }: ResizeHandleProps) {
+export function ResizeHandle({ className = "" }: ResizeHandleProps) {
   // Resizing disabled as per user request
   return (
     <div

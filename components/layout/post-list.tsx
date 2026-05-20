@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { RefreshCw, ChevronDown } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { RefreshCw } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { SortMode } from "@/lib/use-reddit";

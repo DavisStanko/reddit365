@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
   Globe,
   TrendingUp,
-  Hash,
   MoreVertical,
   Trash2,
 } from "lucide-react";
@@ -187,7 +186,12 @@ export function FolderPane() {
           activeId={activeFeed}
           onSelect={setActiveFeed}
         />
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext 
+          id="folder-pane-dnd"
+          sensors={sensors} 
+          collisionDetection={closestCenter} 
+          onDragEnd={handleDragEnd}
+        >
           <FolderGroup
             title="Subscriptions"
             items={subreddits}
