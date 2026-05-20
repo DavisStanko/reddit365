@@ -70,7 +70,7 @@ function buildPostsUrl(
     basePath = `/r/${name}`;
   }
 
-  let targetUrl = `https://www.reddit.com${basePath}/${sort}.json?raw_json=1&limit=10`;
+  let targetUrl = `https://old.reddit.com${basePath}/${sort}.rss?limit=15`;
 
   if (sort === "top") {
     targetUrl += "&t=all";
@@ -90,8 +90,21 @@ function buildCommentsUrl(
   permalink: string,
   after: string | null,
 ): string {
-  // permalink looks like /r/subreddit/comments/abc123/slug/
-  let targetUrl = `https://www.reddit.com${clean}.json?raw_json=1&limit=50&sort=confidence`;
+  let targetUrl = permalink;
+  if (permalink.startsWith("http")) {
+    try {
+      const urlObj = new URL(permalink);
+      urlObj.host = "old.reddit.com";
+      const clean = urlObj.toString().endsWith("/") ? urlObj.toString().slice(0, -1) : urlObj.toString();
+      targetUrl = `${clean}.rss?limit=50&sort=confidence`;
+    } catch {
+      const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
+      targetUrl = `${clean}.rss?limit=50&sort=confidence`;
+    }
+  } else {
+    const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
+    targetUrl = `https://old.reddit.com${clean}.rss?limit=50&sort=confidence`;
+  }
   if (after) {
     targetUrl += `&after=${after}`;
   }
@@ -289,18 +302,66 @@ export function useReddit(
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
-        const json = await res.json();
+        const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const children = json?.data?.children ?? [];
-        const nextAfter: string | null = json?.data?.after ?? null;
+        let newPosts: Post[] = [];
+        let nextAfter: string | null = null;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newPosts: Post[] = children
+        if (text.trim().startsWith("<")) {
+          // Parse Atom/RSS feed
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const entries = Array.from(doc.querySelectorAll("entry"));
+          
+          newPosts = entries.map((entry, idx) => {
+            const title = entry.querySelector("title")?.textContent || "Untitled";
+            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
+            const link = entry.querySelector("link")?.getAttribute("href") || "";
+            const content = entry.querySelector("content")?.textContent || "";
+            const updated = entry.querySelector("updated")?.textContent || "";
+            const idText = entry.querySelector("id")?.textContent || "";
+            
+            const matchSub = link.match(/\/r\/([^\/]+)/);
+            const subreddit = matchSub ? `r/${matchSub[1]}` : feed;
+            
+            let imageUrl: string | undefined;
+            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
+            if (imgMatch) {
+              imageUrl = imgMatch[1];
+            }
+            
+            const tmp = document.createElement("div");
+            tmp.innerHTML = content;
+            let bodyText = tmp.textContent || tmp.innerText || "";
+            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
+            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
+            
+            return {
+              id: idText ? parseInt(idText.replace(/[^0-9]/g, "").slice(0, 8), 10) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
+              title,
+              subreddit,
+              author: authorName,
+              time: updated ? new Date(updated).toLocaleDateString() : "recent",
+              score: "0",
+              comments: 0,
+              body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
+              imageUrl,
+              permalink: link,
+            };
+          });
+        } else {
+          const json = JSON.parse(text);
+          const children = json?.data?.children ?? [];
+          nextAfter = json?.data?.after ?? null;
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.kind === "t3")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any) => parsePost(c.data));
+          newPosts = children
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .filter((c: any) => c.kind === "t3")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((c: any) => parsePost(c.data));
+        }
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
@@ -358,28 +419,45 @@ export function useReddit(
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
-        const json = await res.json();
+        const text = await res.text();
         if (controller.signal.aborted) return;
 
-        if (!Array.isArray(json) || json.length < 2) {
+        let newComments: FlatComment[] = [];
+
+        if (text.trim().startsWith("<")) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const entries = Array.from(doc.querySelectorAll("entry"));
+          // In Reddit's comment RSS feed, the first <entry> is ALWAYS the post itself.
+          // We slice(1) to drop the post and only map the actual comments.
+          newComments = entries.slice(1).map((entry) => {
+            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
+            const content = entry.querySelector("content")?.textContent || "";
+            const updated = entry.querySelector("updated")?.textContent || "";
+            const idText = entry.querySelector("id")?.textContent || String(Math.random());
+            
+            const tmp = document.createElement("div");
+            tmp.innerHTML = content;
+            const bodyText = tmp.textContent || tmp.innerText || "";
+            
+            return {
+              id: idText,
+              author: authorName,
+              time: updated ? new Date(updated).toLocaleDateString() : "recent",
+              score: 0,
+              body: bodyText,
+              depth: 0,
+            };
+          });
+          
+          commentsAfterRef.current = null;
+          setCommentsAfter(null);
+          setHasMoreComments(false);
+          setComments(newComments);
+        } else {
           setComments([]);
           setHasMoreComments(false);
-          return;
         }
-
-        const commentListing = json[1];
-        const children = commentListing?.data?.children ?? [];
-        const nextAfter: string | null = commentListing?.data?.after ?? null;
-
-        const newComments: FlatComment[] = children.flatMap(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (c: any) => parseCommentNode(c, 0),
-        );
-
-        commentsAfterRef.current = nextAfter;
-        setCommentsAfter(nextAfter);
-        setHasMoreComments(nextAfter !== null);
-        setComments(newComments);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] comments fetch failed:", err);
@@ -426,18 +504,67 @@ export function useReddit(
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
-        const json = await res.json();
+        const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const children = json?.data?.children ?? [];
-        const nextAfter: string | null = json?.data?.after ?? null;
+        let newPosts: Post[] = [];
+        let nextAfter: string | null = null;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newPosts: Post[] = children
+        if (text.trim().startsWith("<")) {
+          // Parse Atom/RSS feed
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const entries = Array.from(doc.querySelectorAll("entry"));
+          
+          newPosts = entries.map((entry) => {
+            const title = entry.querySelector("title")?.textContent || "Untitled";
+            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
+            const link = entry.querySelector("link")?.getAttribute("href") || "";
+            const content = entry.querySelector("content")?.textContent || "";
+            const updated = entry.querySelector("updated")?.textContent || "";
+            const idText = entry.querySelector("id")?.textContent || "";
+            
+            const matchSub = link.match(/\/r\/([^\/]+)/);
+            const subreddit = matchSub ? `r/${matchSub[1]}` : feedRef.current;
+            
+            let imageUrl: string | undefined;
+            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
+            if (imgMatch) {
+              imageUrl = imgMatch[1];
+            }
+            
+            const tmp = document.createElement("div");
+            tmp.innerHTML = content;
+            let bodyText = tmp.textContent || tmp.innerText || "";
+            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
+            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
+            
+            return {
+              id: idText ? parseInt(idText.replace(/[^0-9]/g, "").slice(0, 8), 10) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
+              title,
+              subreddit,
+              author: authorName,
+              time: updated ? new Date(updated).toLocaleDateString() : "recent",
+              score: "0",
+              comments: 0,
+              body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
+              imageUrl,
+              permalink: link,
+            };
+          });
+          nextAfter = null;
+        } else {
+          const json = JSON.parse(text);
+          const children = json?.data?.children ?? [];
+          nextAfter = json?.data?.after ?? null;
+
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((c: any) => c.kind === "t3")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((c: any) => parsePost(c.data));
+          newPosts = children
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .filter((c: any) => c.kind === "t3")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((c: any) => parsePost(c.data));
+        }
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
