@@ -96,7 +96,7 @@ function CommentThread() {
       style={{ marginTop: "24px", paddingBottom: "40px" }}
     >
       <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
-        Replies (Best)
+        Replies
       </h3>
       <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px", marginBottom: "16px" }}>
         Replies are displayed as a flat list due to API constraints.
