@@ -333,6 +333,19 @@ export function useReddit(
             
             const tmp = document.createElement("div");
             tmp.innerHTML = content;
+
+            let externalUrl: string | undefined;
+            const linkAnchors = tmp.querySelectorAll("a");
+            let linkHref = "";
+            let commentsHref = "";
+            linkAnchors.forEach((a) => {
+              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
+              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
+            });
+            if (linkHref && commentsHref && linkHref !== commentsHref) {
+              externalUrl = linkHref;
+            }
+
             let bodyText = tmp.textContent || tmp.innerText || "";
             bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
@@ -348,6 +361,7 @@ export function useReddit(
               body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
               imageUrl,
               permalink: link,
+              externalUrl,
             };
           });
         } else {
@@ -535,6 +549,19 @@ export function useReddit(
             
             const tmp = document.createElement("div");
             tmp.innerHTML = content;
+
+            let externalUrl: string | undefined;
+            const linkAnchors = tmp.querySelectorAll("a");
+            let linkHref = "";
+            let commentsHref = "";
+            linkAnchors.forEach((a) => {
+              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
+              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
+            });
+            if (linkHref && commentsHref && linkHref !== commentsHref) {
+              externalUrl = linkHref;
+            }
+
             let bodyText = tmp.textContent || tmp.innerText || "";
             bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+\s+to\s+\/?r\/[^\s]+\s+\[link\]\s+\[comments\]/gi, "").trim();
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
@@ -550,6 +577,7 @@ export function useReddit(
               body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
               imageUrl,
               permalink: link,
+              externalUrl,
             };
           });
           nextAfter = null;
