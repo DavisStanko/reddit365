@@ -221,8 +221,11 @@ export function ContentPane() {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={mediaUrl}
-                alt={post.title}
+                alt=""
                 className="reading-view__image"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
             )}
           </div>
