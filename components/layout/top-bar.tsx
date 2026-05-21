@@ -3,6 +3,7 @@
 import {
   Search,
   Bell,
+  Settings,
   CircleUserRound,
   MessageSquare,
   CalendarCheck,
@@ -89,6 +90,14 @@ export function TopBar({ folderWidth = 220, listWidth = 340 }: TopBarProps) {
             aria-label="Notifications"
           >
             <Bell size={16} />
+          </button>
+
+          <button
+            className="top-bar__action"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Settings size={16} />
           </button>
 
           <button

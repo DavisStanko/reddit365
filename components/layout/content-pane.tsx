@@ -204,7 +204,7 @@ export function ContentPane() {
         <div className="reading-view__header" style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--outlook-border)" }}>
           <h1 className="reading-view__title" style={{ fontSize: "20px", fontWeight: "600", marginBottom: "20px" }}>
             {post.permalink ? (
-              <a href={post.permalink} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
+              <a href={post.permalink} target="_blank" rel="noopener noreferrer">
                 {post.title}
               </a>
             ) : (
@@ -274,7 +274,11 @@ export function ContentPane() {
                   className="reading-view__image"
                   style={{ display: "block" }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
+                    const target = e.currentTarget;
+                    target.style.display = "none";
+                    if (target.parentElement) {
+                      target.parentElement.style.display = "none";
+                    }
                   }}
                 />
               )}
@@ -286,7 +290,7 @@ export function ContentPane() {
               <div style={{ fontSize: "12px", color: "var(--outlook-text-secondary)", marginBottom: "4px" }}>
                 External Link
               </div>
-              <a href={post.externalUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--outlook-blue)", fontWeight: "600", textDecoration: "none", fontSize: "16px", display: "inline-block", wordBreak: "break-all" }}>
+              <a href={post.externalUrl} target="_blank" rel="noopener noreferrer" className="reading-view__external-link">
                 {post.externalUrl}
               </a>
             </div>

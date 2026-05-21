@@ -347,14 +347,14 @@ export function useReddit(
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
             
             return {
-              id: idText ? parseInt(idText.replace(/[^0-9]/g, "").slice(0, 8), 10) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
+              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
               title,
               subreddit,
               author: authorName,
               time: updated ? new Date(updated).toLocaleDateString() : "recent",
               score: "0",
               comments: 0,
-              body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
+              body: bodyText,
               imageUrl,
               permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
               externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
@@ -559,14 +559,14 @@ export function useReddit(
             bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
             
             return {
-              id: idText ? parseInt(idText.replace(/[^0-9]/g, "").slice(0, 8), 10) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
+              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
               title,
               subreddit,
               author: authorName,
               time: updated ? new Date(updated).toLocaleDateString() : "recent",
               score: "0",
               comments: 0,
-              body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
+              body: bodyText,
               imageUrl,
               permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
               externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
@@ -701,15 +701,77 @@ export function useReddit(
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
-        const json = await res.json();
+        const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const children = json?.data?.children ?? [];
-        const nextAfter: string | null = json?.data?.after ?? null;
+        let newPosts: Post[] = [];
+        let nextAfter: string | null = null;
 
-                const newPosts: Post[] = children
-                    .filter((c: any) => c.kind === "t3")
-                    .map((c: any) => parsePost(c.data));
+        if (text.trim().startsWith("<")) {
+          // Parse Atom/RSS feed
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const entries = Array.from(doc.querySelectorAll("entry"));
+          
+          newPosts = entries.map((entry) => {
+            const title = entry.querySelector("title")?.textContent || "Untitled";
+            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
+            const link = entry.querySelector("link")?.getAttribute("href") || "";
+            const content = entry.querySelector("content")?.textContent || "";
+            const updated = entry.querySelector("updated")?.textContent || "";
+            const idText = entry.querySelector("id")?.textContent || "";
+            
+            const matchSub = link.match(/\/r\/([^\/]+)/);
+            const subreddit = matchSub ? `r/${matchSub[1]}` : feedRef.current;
+            
+            let imageUrl: string | undefined;
+            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
+            if (imgMatch) {
+              imageUrl = imgMatch[1];
+            }
+            
+            const tmp = document.createElement("div");
+            tmp.innerHTML = content;
+
+            let externalUrl: string | undefined;
+            const linkAnchors = tmp.querySelectorAll("a");
+            let linkHref = "";
+            let commentsHref = "";
+            linkAnchors.forEach((a) => {
+              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
+              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
+            });
+            if (linkHref && commentsHref && linkHref !== commentsHref) {
+              externalUrl = linkHref;
+            }
+
+            let bodyText = tmp.textContent || tmp.innerText || "";
+            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
+            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
+            
+            return {
+              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
+              title,
+              subreddit,
+              author: authorName,
+              time: updated ? new Date(updated).toLocaleDateString() : "recent",
+              score: "0",
+              comments: 0,
+              body: bodyText,
+              imageUrl,
+              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
+              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
+            };
+          });
+        } else {
+          const json = JSON.parse(text);
+          const children = json?.data?.children ?? [];
+          nextAfter = json?.data?.after ?? null;
+
+          newPosts = children
+              .filter((c: any) => c.kind === "t3")
+              .map((c: any) => parsePost(c.data));
+        }
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
