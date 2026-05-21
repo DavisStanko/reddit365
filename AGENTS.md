@@ -57,37 +57,41 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 │  TopBar (height: 48px, bg: --outlook-blue)          │  ← .top-bar
 ├──────┬──────────────┬──────────────┬────────────────┤
 │      │              │              │                │
-│ Icon │  Folder Pane │  Post List   │  Reading Pane  │
-│ Rail │  (resizable) │  (resizable) │  (flex: 1)     │
-│ 48px │  default:220 │  default:340 │                │
-│      │  min:160     │  min:200     │                │
-│      │  max:400     │  max:600     │                │
+│ Icon │  Folder Pane │ Message List │  Reading Pane  │
+│ Rail │  (resizable) │ (resizable)  │  (flex: 1)     │
+│ 48px │  default:220 │ default:340  │                │
+│      │  min:160     │ min:200      │                │
+│      │  max:400     │ max:600      │                │
 └──────┴──────────────┴──────────────┴────────────────┘
 ```
 
 - **`.outlook-shell`** — `display: flex; flex-direction: column; height: 100vh; overflow: hidden`
 - **`.outlook-shell__body`** — `display: flex; flex: 1; overflow: hidden`
-- **`.outlook-shell__folder`** — fixed width, `border-right`
-- **`.outlook-shell__list`** — fixed width, `border-right`
-- **`.outlook-shell__content`** — `flex: 1; min-width: 0`
+- **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
+- **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
+- **`.outlook-shell__content`** — **Reading Pane** (Post viewing), `flex: 1; min-width: 0`
 - Between each resizable pane: a `<ResizeHandle>` component
 
-### Resize Handles
-`components/layout/resize-handle.tsx` — 4px wide, transparent by default, turns `--outlook-blue` on hover/drag.
+### Linkification & Hover Rules
+1. **Message List (Column 2)**:
+   - **Nothing** inside the message list items should be clickable as an internal link (e.g., subreddit or author names).
+   - The entire item is clickable to select the post, but there should be **no visual styling on hover for text** (no blue color or underline for titles).
+2. **Reading Pane (Column 3)**:
+   - Subject lines (Post Titles) **should** behave like a link on hover (show underline/blue color).
+   - "From" (author) and "To" (subreddit) fields should look like normal text by default but show as a link on hover.
+   - Body and comments **should** be linkified (URLs, r/sub, u/user).
 
 ---
 
 ## Component Map
 
-| File | Outlook Equivalent | Notes |
-|---|---|---|
-| `components/layout/top-bar.tsx` | Top ribbon/nav bar | Blue bg, "Reddit365" wordmark, search, avatar |
-| `components/layout/icon-rail.tsx` | Left nav icon strip | Dark bg, 48px wide, Fluent active indicator |
-| `components/layout/folder-pane.tsx` | Folder list sidebar | Shows subreddits as "folders", expandable groups |
-| `components/layout/content-pane.tsx` | Reading/message pane | Post detail view with vote bar, body, toolbar |
-| `components/layout/resize-handle.tsx` | Pane resize splitter | Draggable col-resize handle |
-| `components/settings-context.tsx` | Settings state | `mediaEnabled` toggle (show/hide images in reading pane) |
-| `app/page.tsx` | Main shell | Composes all panels, manages resize state |
+| File | Column Name | Outlook Equivalent | Notes |
+|---|---|---|---|
+| `components/layout/top-bar.tsx` | N/A | Top ribbon/nav bar | Blue bg, wordmark, search, avatar |
+| `components/layout/icon-rail.tsx` | N/A | Left nav icon strip | Dark bg, 48px wide |
+| `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders" |
+| `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
+| `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
 
 ---
 

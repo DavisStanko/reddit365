@@ -4,7 +4,6 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { FlatComment } from "@/lib/types";
@@ -34,7 +33,7 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
           href={`https://reddit.com/u/${comment.author}`} 
           target="_blank" 
           rel="noopener noreferrer" 
-          className="outlook-link"
+          className="reading-view__meta-link"
           style={{ fontWeight: "600" }}
         >
           u/{comment.author}
@@ -50,7 +49,8 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
   );
 }
 
-function CommentThread({ hasBody }: { hasBody: boolean }) {
+function CommentThread() {
+  const { selectedPost: post } = useAppContext();
   const {
     comments,
     isLoadingComments,
@@ -66,7 +66,6 @@ function CommentThread({ hasBody }: { hasBody: boolean }) {
   useEffect(() => {
     observerRef.current?.disconnect();
 
-    // Walk up from sentinel to find the scrollable .reading-view ancestor
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
@@ -92,7 +91,7 @@ function CommentThread({ hasBody }: { hasBody: boolean }) {
   return (
     <div
       className="reading-view__comments"
-      style={{ marginTop: hasBody ? "24px" : "12px", paddingBottom: "40px" }}
+      style={{ padding: "24px 24px 40px" }}
     >
       <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
         Replies
@@ -148,9 +147,28 @@ function CommentThread({ hasBody }: { hasBody: boolean }) {
             fontSize: "13px",
             marginTop: "16px",
             textAlign: "center",
+            padding: "0 20px",
+            lineHeight: "1.4"
           }}
         >
-          — End of replies —
+          {comments.length >= 50 ? (
+            <>
+              Reddit&apos;s unauthenticated feed is limited to the first 50 replies.
+              <br />
+              <a 
+                href={post?.permalink} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                style={{ color: "var(--outlook-blue)", textDecoration: "none" }}
+                onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+              >
+                View full thread on Reddit
+              </a> to see more.
+            </>
+          ) : (
+            "— End of replies —"
+          )}
         </div>
       )}
     </div>
@@ -158,7 +176,6 @@ function CommentThread({ hasBody }: { hasBody: boolean }) {
 }
 
 export function ContentPane() {
-  const { mediaEnabled } = useSettings();
   const { selectedPost: post } = useAppContext();
   const readingViewRef = useRef<HTMLDivElement | null>(null);
   const mediaUrl = post?.mediaUrl ?? post?.imageUrl;
@@ -172,6 +189,11 @@ export function ContentPane() {
       />
     );
   }
+
+  const hasBody = !!(post.body && post.body.trim().length > 0);
+  const hasMedia = !!mediaUrl;
+  const hasExternalLink = !!post.externalUrl;
+  const hasContent = hasBody || hasMedia || hasExternalLink;
 
   return (
     <section
@@ -200,7 +222,7 @@ export function ContentPane() {
                     href={`https://reddit.com/u/${post.author}`} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="outlook-link"
+                    className="reading-view__meta-link"
                     style={{ fontSize: "14px", fontWeight: "600" }}
                   >
                     u/{post.author}
@@ -212,7 +234,7 @@ export function ContentPane() {
                     href={`https://reddit.com/r/${post.subreddit}`} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="outlook-link"
+                    className="reading-view__meta-link"
                     style={{ fontWeight: "600" }}
                   >
                     r/{post.subreddit}
@@ -223,58 +245,70 @@ export function ContentPane() {
           </div>
         </div>
 
-        {mediaEnabled && mediaUrl && (
-          <div className="reading-view__media">
-            {mediaType === "video" ? (
-              <video
-                className="reading-view__video"
-                controls
-                playsInline
-                preload="metadata"
-                src={mediaUrl}
-              />
-            ) : (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={mediaUrl}
-                alt=""
-                className="reading-view__image"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            )}
-          </div>
-        )}
-
-        {post.externalUrl && (
-          <div style={{ margin: "16px 24px", padding: "16px", backgroundColor: "var(--outlook-blue-light)", borderLeft: "4px solid var(--outlook-blue)" }}>
-            <div style={{ fontSize: "12px", color: "var(--outlook-text-secondary)", marginBottom: "4px" }}>
-              External Link
+        <div 
+          className="reading-view__post-content" 
+          style={{ 
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+            padding: hasContent ? "20px 0" : "0", 
+            borderBottom: hasContent ? "1px solid var(--outlook-border)" : "none" 
+          }}
+        >
+          {hasMedia && (
+            <div className="reading-view__media" style={{ padding: "0 24px" }}>
+              {mediaType === "video" ? (
+                <video
+                  className="reading-view__video"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={mediaUrl}
+                  style={{ display: "block" }}
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={mediaUrl}
+                  alt=""
+                  className="reading-view__image"
+                  style={{ display: "block" }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
             </div>
-            <a href={post.externalUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--outlook-blue)", fontWeight: "600", textDecoration: "none", fontSize: "16px", display: "inline-block", wordBreak: "break-all" }}>
-              {post.externalUrl}
-            </a>
-          </div>
-        )}
+          )}
 
-        {post.body && post.body.trim().length > 0 && (
-          <div
-            className="reading-view__body"
-            style={{
-              padding: "0 24px 24px",
-              borderBottom: "1px solid var(--outlook-border)",
-              whiteSpace: "pre-wrap",
-              fontSize: "15px",
-              lineHeight: "1.6",
-            }}
-          >
-            {linkifyText(post.body)}
-          </div>
-        )}
+          {hasExternalLink && (
+            <div style={{ margin: "0 24px", padding: "16px", backgroundColor: "var(--outlook-blue-light)", borderLeft: "4px solid var(--outlook-blue)" }}>
+              <div style={{ fontSize: "12px", color: "var(--outlook-text-secondary)", marginBottom: "4px" }}>
+                External Link
+              </div>
+              <a href={post.externalUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--outlook-blue)", fontWeight: "600", textDecoration: "none", fontSize: "16px", display: "inline-block", wordBreak: "break-all" }}>
+                {post.externalUrl}
+              </a>
+            </div>
+          )}
+
+          {hasBody && (
+            <div
+              className="reading-view__body"
+              style={{
+                padding: "0 24px",
+                whiteSpace: "pre-wrap",
+                fontSize: "15px",
+                lineHeight: "1.6",
+              }}
+            >
+              {linkifyText(post.body || "")}
+            </div>
+          )}
+        </div>
 
         {post.permalink && (
-          <CommentThread key={post.id} hasBody={!!(post.body && post.body.trim().length > 0)} />
+          <CommentThread key={post.id} />
         )}
       </div>
     </section>
