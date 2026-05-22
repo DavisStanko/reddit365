@@ -38,8 +38,7 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
           marginBottom: "4px",
         }}
       >
-        <strong>u/{comment.author}</strong>{" "}
-        <span style={{ margin: "0 4px" }}>·</span> {comment.time}
+        <strong>u/{comment.author}</strong>
       </div>
       <div
         className="reading-view__comment-body"
@@ -226,6 +225,17 @@ export function ContentPane() {
                 className="reading-view__image"
               />
             )}
+          </div>
+        )}
+
+        {post.externalUrl && (
+          <div style={{ margin: "16px 24px", padding: "16px", backgroundColor: "var(--outlook-blue-light)", borderLeft: "4px solid var(--outlook-blue)" }}>
+            <div style={{ fontSize: "12px", color: "var(--outlook-text-secondary)", marginBottom: "4px" }}>
+              External Link
+            </div>
+            <a href={post.externalUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--outlook-blue)", fontWeight: "600", textDecoration: "none", fontSize: "16px", display: "inline-block", wordBreak: "break-all" }}>
+              {post.externalUrl}
+            </a>
           </div>
         )}
 

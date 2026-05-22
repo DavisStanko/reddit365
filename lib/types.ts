@@ -11,6 +11,7 @@ export interface Post {
   mediaUrl?: string;
   mediaType?: "image" | "video";
   permalink?: string;
+  externalUrl?: string;
 }
 
 export interface RedditComment {
