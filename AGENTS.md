@@ -58,8 +58,8 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 ├──────┬──────────────┬──────────────┬────────────────┤
 │      │              │              │                │
 │ Icon │  Folder Pane │ Message List │  Reading Pane  │
-│ Rail │  (resizable) │ (resizable)  │  (flex: 1)     │
-│ 48px │  default:220 │ default:340  │                │
+│ Rail │  Folder Pane │ Message List │  Reading Pane  │
+│ 48px │  fixed:220   │ fixed:330    │                │
 │      │  min:160     │ min:200      │                │
 │      │  max:400     │ max:600      │                │
 └──────┴──────────────┴──────────────┴────────────────┘
@@ -70,7 +70,7 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 - **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
 - **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
 - **`.outlook-shell__content`** — **Reading Pane** (Post viewing), `flex: 1; min-width: 0`
-- Between each resizable pane: a `<ResizeHandle>` component
+- Between each pane: a `<ResizeHandle>` component (Note: Resizing has been disabled per user request)
 
 ### Linkification & Hover Rules
 1. **Message List (Column 2)**:
@@ -120,7 +120,7 @@ The `Post` type currently has:
 - `body` (supports `**bold**` markdown)
 - `imageUrl?` (optional, shown only when `mediaEnabled` is true)
 
-The fallback sample data was completely removed. When adding real Reddit API integration, rely on the Next.js `rewrites` proxy in `next.config.ts`.
+The fallback sample data was completely removed. When adding real Reddit API integration, rely on the Next.js API proxy in `app/api/reddit/route.ts`.
 
 **CRITICAL DECISION: DO NOT ATTEMPT OAUTH INTEGRATION OR .JSON API FETCHING.**
 We have exhaustively tested authentication flows and determined:
@@ -158,7 +158,7 @@ A feature is complete when:
 - It uses the correct tokens from the design system
 - It follows the BEM class naming convention
 - It works with keyboard navigation (focus rings, `tabIndex`, `aria-*` attributes)
-- Resize handles still function after the change
+- Layout structure remains intact (Resize handles are currently disabled, but act as visual separators)
 - The page `<title>` remains "Outlook" and the favicon remains the Outlook icon
 
 ---
