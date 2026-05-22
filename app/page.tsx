@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+
 import {
   IconRail,
   TopBar,
@@ -22,27 +22,13 @@ const MAX_LIST_WIDTH = 600;
 const DEFAULT_LIST_WIDTH = 330;
 
 export default function Home() {
-  const [folderWidth, setFolderWidth] = useState(DEFAULT_FOLDER_WIDTH);
-  const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH);
-
-  const handleFolderResize = useCallback((delta: number) => {
-    setFolderWidth((w) =>
-      Math.min(MAX_FOLDER_WIDTH, Math.max(MIN_FOLDER_WIDTH, w + delta)),
-    );
-  }, []);
-
-  const handleListResize = useCallback((delta: number) => {
-    setListWidth((w) =>
-      Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, w + delta)),
-    );
-  }, []);
 
   return (
     <AppProvider>
       <RedditProvider>
         <div className="outlook-shell">
           {/* Top ribbon/nav bar */}
-          <TopBar folderWidth={folderWidth} listWidth={listWidth} />
+          <TopBar folderWidth={DEFAULT_FOLDER_WIDTH} listWidth={DEFAULT_LIST_WIDTH} />
 
           {/* Main body below the top bar */}
           <div className="outlook-shell__body">
@@ -56,17 +42,17 @@ export default function Home() {
                 {/* Folder pane — resizable */}
                 <div
                   className="outlook-shell__folder"
-                  style={{ width: folderWidth }}
+                  style={{ width: DEFAULT_FOLDER_WIDTH }}
                 >
                   <FolderPane />
                 </div>
-                <ResizeHandle onResize={handleFolderResize} />
+                <ResizeHandle />
 
                 {/* Message list pane — resizable */}
-                <div className="outlook-shell__list" style={{ width: listWidth }}>
+                <div className="outlook-shell__list" style={{ width: DEFAULT_LIST_WIDTH }}>
                   <PostList />
                 </div>
-                <ResizeHandle onResize={handleListResize} />
+                <ResizeHandle />
 
                 {/* Reading pane — takes remaining space */}
                 <div className="outlook-shell__content">
