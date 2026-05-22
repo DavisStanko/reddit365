@@ -102,123 +102,7 @@ function buildCommentsUrl(
 // Helpers — Parsing
 // ---------------------------------------------------------------------------
 
-function unescapeHtmlEntities(str: string): string {
-  return str.replace(/&amp;/g, "&");
-}
 
-function formatAge(createdUtc: number): string {
-  const diffMs = Date.now() - createdUtc * 1000;
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 60) return `${diffMins}m`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h`;
-  return `${Math.floor(diffHours / 24)}d`;
-}
-
-function formatScore(score: number): string {
-  if (score >= 1000) return `${(score / 1000).toFixed(1)}k`;
-  return String(score);
-}
-
-function looksLikeImage(url?: string): boolean {
-  return !!url && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
-}
-
-function parsePost(d: any): Post {
-  const subreddit = `r/${d.subreddit}`;
-
-  const body: string =
-    d.selftext?.trim()
-      ? d.selftext
-      : d.url && !d.url.startsWith("https://www.reddit.com")
-        ? `[Link post] ${d.url}`
-        : "";
-
-  // --- Media extraction ---
-  let imageUrl: string | undefined;
-  let mediaUrl: string | undefined;
-  let mediaType: "image" | "video" | undefined;
-
-  const directUrl = d.url_overridden_by_dest || d.url;
-
-  if (d.is_video) {
-    const videoUrl =
-      d.secure_media?.reddit_video?.fallback_url ||
-      d.media?.reddit_video?.fallback_url;
-    if (videoUrl) {
-      mediaUrl = videoUrl;
-      mediaType = "video";
-    }
-  } else if (d.is_gallery) {
-    const firstId = d.gallery_data?.items?.[0]?.media_id;
-    const galleryUrl = firstId && d.media_metadata?.[firstId]?.s?.u;
-    if (galleryUrl) {
-      const url = unescapeHtmlEntities(galleryUrl);
-      imageUrl = url;
-      mediaUrl = url;
-      mediaType = "image";
-    }
-  } else if (looksLikeImage(directUrl)) {
-    imageUrl = directUrl;
-    mediaUrl = directUrl;
-    mediaType = "image";
-  } else if (d.preview?.images?.[0]?.source?.url) {
-    const url = unescapeHtmlEntities(d.preview.images[0].source.url);
-    imageUrl = url;
-    mediaUrl = url;
-    mediaType = "image";
-  }
-
-  // --- Score ---
-  const scoreStr =
-    d.score !== undefined ? formatScore(d.score) : "0";
-
-  // --- Time ---
-  const timeStr = d.created_utc ? formatAge(d.created_utc) : "0m";
-
-  return {
-    id: d.name
-      ? parseInt(d.name.replace(/^t3_/, ""), 36)
-      : Math.floor(Math.random() * 1e8),
-    title: d.title || "Untitled",
-    subreddit,
-    author: d.author || "unknown",
-    time: timeStr,
-    score: scoreStr,
-    comments: d.num_comments || 0,
-    body,
-    imageUrl,
-    mediaUrl,
-    mediaType,
-    permalink: typeof d.permalink === "string" && d.permalink.startsWith("/") ? `https://www.reddit.com${d.permalink}` : d.permalink?.replace(/old\.reddit\.com/i, "www.reddit.com"),
-  };
-}
-
-function parseCommentNode(node: any, depth: number): FlatComment[] {
-  if (node.kind !== "t1") return [];
-  const d = node.data;
-  if (!d || !d.body) return [];
-
-  const comment: FlatComment = {
-    id: d.id ?? d.name ?? String(Math.random()),
-    author: d.author ?? "unknown",
-    time: d.created_utc ? formatAge(d.created_utc) : "0m",
-    score: d.score !== undefined ? formatScore(d.score) : "0",
-    body: d.body,
-    depth,
-  };
-
-  let childComments: FlatComment[] = [];
-  if (typeof d.replies !== "string" && d.replies?.data?.children) {
-    childComments = d.replies.data.children.flatMap(
-            (child: any) => parseCommentNode(child, depth + 1),
-    );
-  }
-
-  return [comment, ...childComments];
-}
-
-// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -360,16 +244,7 @@ export function useReddit(
               externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
             };
           });
-        } else {
-          const json = JSON.parse(text);
-          const children = json?.data?.children ?? [];
-          nextAfter = json?.data?.after ?? null;
-
-                    newPosts = children
-                        .filter((c: any) => c.kind === "t3")
-                        .map((c: any) => parsePost(c.data));
         }
-
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
@@ -573,16 +448,7 @@ export function useReddit(
             };
           });
           nextAfter = null;
-        } else {
-          const json = JSON.parse(text);
-          const children = json?.data?.children ?? [];
-          nextAfter = json?.data?.after ?? null;
-
-                    newPosts = children
-                        .filter((c: any) => c.kind === "t3")
-                        .map((c: any) => parsePost(c.data));
         }
-
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
@@ -611,65 +477,7 @@ export function useReddit(
   // loadMoreComments — append next page
   // ------------------------------------------------------------------
   const loadMoreComments = useCallback(() => {
-    if (loadingCommentsRef.current || !commentsAfterRef.current) return;
-    const permalink = selectedPostRef.current?.permalink;
-    if (!permalink) return;
-
-    const currentAfter = commentsAfterRef.current;
-    loadingCommentsRef.current = true;
-    setIsLoadingComments(true);
-
-    const controller = new AbortController();
-
-    const doFetch = async () => {
-      try {
-        const url = buildCommentsUrl(permalink, currentAfter);
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) {
-          const text = await res.text().catch(() => "No response body");
-          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
-        }
-
-        const json = await res.json();
-        if (controller.signal.aborted) return;
-
-        if (!Array.isArray(json) || json.length < 2) {
-          setHasMoreComments(false);
-          commentsAfterRef.current = null;
-          setCommentsAfter(null);
-          return;
-        }
-
-        const commentListing = json[1];
-        const children = commentListing?.data?.children ?? [];
-        const nextAfter: string | null = commentListing?.data?.after ?? null;
-
-        const newComments: FlatComment[] = children.flatMap(
-                    (c: any) => parseCommentNode(c, 0),
-        );
-
-        commentsAfterRef.current = nextAfter;
-        setCommentsAfter(nextAfter);
-        setHasMoreComments(nextAfter !== null);
-
-        setComments((prev) => {
-          const existingIds = new Set(prev.map((c) => c.id));
-          const unique = newComments.filter((c) => !existingIds.has(c.id));
-          return [...prev, ...unique];
-        });
-      } catch (err: unknown) {
-        if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] load more comments blocked/failed:", err);
-        setHasMoreComments(false);
-      } finally {
-        if (!controller.signal.aborted) {
-          loadingCommentsRef.current = false;
-          setIsLoadingComments(false);
-        }
-      }
-    };
-
-    void doFetch();
+    // Comments pagination is not supported by RSS
   }, []);
 
   // ------------------------------------------------------------------
@@ -763,16 +571,7 @@ export function useReddit(
               externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
             };
           });
-        } else {
-          const json = JSON.parse(text);
-          const children = json?.data?.children ?? [];
-          nextAfter = json?.data?.after ?? null;
-
-          newPosts = children
-              .filter((c: any) => c.kind === "t3")
-              .map((c: any) => parsePost(c.data));
         }
-
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
