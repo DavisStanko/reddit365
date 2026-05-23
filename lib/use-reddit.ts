@@ -56,17 +56,13 @@ function buildPostsUrl(
   sort: SortMode,
   after: string | null,
 ): string {
-  // "frontpage" is a virtual feed — use r/popular as placeholder
-  const isVirtualFrontpage = feed === "frontpage";
-  const effectiveFeed = isVirtualFrontpage ? "popular" : feed;
-
   let basePath: string;
-  if (effectiveFeed === "popular") {
+  if (feed === "popular") {
     basePath = "/r/popular";
-  } else if (effectiveFeed === "all") {
+  } else if (feed === "all") {
     basePath = "/r/all";
   } else {
-    const name = effectiveFeed.replace(/^r\//, "");
+    const name = feed.replace(/^r\//, "");
     basePath = `/r/${name}`;
   }
 
@@ -207,7 +203,7 @@ function parsePost(d: any): Post {
     imageUrl,
     mediaUrl,
     mediaType,
-    permalink: d.permalink,
+    permalink: typeof d.permalink === "string" && d.permalink.startsWith("/") ? `https://www.reddit.com${d.permalink}` : d.permalink?.replace(/old\.reddit\.com/i, "www.reddit.com"),
   };
 }
 
@@ -271,9 +267,11 @@ export function useReddit(
   const sortRef = useRef(sort);
   const selectedPostRef = useRef(selectedPost);
 
-  feedRef.current = feed;
-  sortRef.current = sort;
-  selectedPostRef.current = selectedPost;
+  useEffect(() => {
+    feedRef.current = feed;
+    sortRef.current = sort;
+    selectedPostRef.current = selectedPost;
+  }, [feed, sort, selectedPost]);
 
   // ------------------------------------------------------------------
   // Effect: fetch posts when feed/sort/timeframe changes
@@ -281,15 +279,14 @@ export function useReddit(
   useEffect(() => {
     const controller = new AbortController();
 
-    // Reset state
-    setPosts([]);
-    setAfter(null);
-    setHasMorePosts(true);
-    setPostsError(null);
-    afterRef.current = null;
-    loadingPostsRef.current = false;
-
     const doFetch = async () => {
+      // Reset state
+      setPosts([]);
+      setAfter(null);
+      setHasMorePosts(true);
+      setPostsError(null);
+      afterRef.current = null;
+
       loadingPostsRef.current = true;
       setIsLoadingPosts(true);
       setPostsError(null);
@@ -360,8 +357,8 @@ export function useReddit(
               comments: 0,
               body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
               imageUrl,
-              permalink: link,
-              externalUrl,
+              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
+              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
             };
           });
         } else {
@@ -408,19 +405,18 @@ export function useReddit(
   useEffect(() => {
     const controller = new AbortController();
 
-    // Reset comments
-    setComments([]);
-    setCommentsAfter(null);
-    setHasMoreComments(true);
-    setCommentsError(null);
-    commentsAfterRef.current = null;
-    loadingCommentsRef.current = false;
-
     if (!selectedPost?.permalink) return;
 
     const permalink = selectedPost.permalink;
 
     const doFetch = async () => {
+      // Reset comments
+      setComments([]);
+      setCommentsAfter(null);
+      setHasMoreComments(true);
+      setCommentsError(null);
+      commentsAfterRef.current = null;
+
       loadingCommentsRef.current = true;
       setIsLoadingComments(true);
       setCommentsError(null);
@@ -458,7 +454,7 @@ export function useReddit(
               id: idText,
               author: authorName,
               time: updated ? new Date(updated).toLocaleDateString() : "recent",
-              score: 0,
+              score: "0",
               body: bodyText,
               depth: 0,
             };
@@ -576,8 +572,8 @@ export function useReddit(
               comments: 0,
               body: bodyText.length > 200 ? bodyText.slice(0, 200) + "..." : bodyText,
               imageUrl,
-              permalink: link,
-              externalUrl,
+              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
+              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
             };
           });
           nextAfter = null;

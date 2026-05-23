@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Globe,
   TrendingUp,
-  Star,
   Hash,
   MoreVertical,
   Trash2,
@@ -32,7 +31,6 @@ import { CSS } from "@dnd-kit/utilities";
 const FAVORITES: SubredditItem[] = [
   { id: "all", label: "r/all", icon: Globe },
   { id: "popular", label: "r/popular", icon: TrendingUp },
-  { id: "frontpage", label: "Front Page", icon: Star },
 ];
 
 function SortableFolderItem({
