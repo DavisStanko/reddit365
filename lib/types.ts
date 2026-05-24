@@ -14,15 +14,6 @@ export interface Post {
   externalUrl?: string;
 }
 
-export interface RedditComment {
-  id: string;
-  author: string;
-  time: string;
-  score: string;
-  body: string;
-  replies?: RedditComment[];
-}
-
 export interface FlatComment {
   id: string;
   author: string;
