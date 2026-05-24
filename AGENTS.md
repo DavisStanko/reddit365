@@ -143,10 +143,15 @@ The ONLY viable path forward for a basic read-only frontend is using Reddit's pu
 
 1. **One feed at a time.** Only the *currently selected* feed (subreddit + sort) is fetched. Never pre-fetch or eagerly load other feeds in the background.
 2. **Initial load.** When the app mounts or the active feed changes (different subreddit, or different sort: Hot / New / Top), fetch the first page of posts immediately.
-3. **Infinite scroll / Load more.** Append additional posts only when the user scrolls to the bottom of the Message List. Use the `loadMorePosts` callback from `useReddit`. Do not pre-fetch next pages.
-4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background.
+3. **Infinite scroll / Load more.** Append additional posts only when the user scrolls to the bottom of the Message List. Use the `loadMorePosts` callback from `useReddit`. The `IntersectionObserver` **must** use the scroll container element (`listRef`) as its `root` — **not** the default viewport. Using the viewport as root causes the sentinel to fire immediately on page load before the user scrolls.
+4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. Auto-selecting the first post on load is delayed 5 seconds to avoid a burst (posts RSS + comments RSS firing simultaneously → 429). The comments fetch uses `fetchWithRetry` which automatically retries on 429 with exponential backoff (5s, 10s, 15s) before surfacing an error.
 5. **Server-side cache.** The API proxy (`app/api/reddit/route.ts`) caches each RSS URL for 60 seconds in-process. This shields Reddit from burst requests on navigation. Do not set `Cache-Control: no-store` on successful responses.
 6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh by re-selecting the feed or changing the sort tab.
+
+### RSS Limits — What Actually Matters
+- **Posts per page:** `limit=100` in the RSS URL (Reddit RSS hard cap). One request for 100 posts is strictly better for rate limiting than 7 requests of 15 posts each. Infinite scroll only makes a second request if the user actually scrolls past 100 posts.
+- **Comments per post:** `limit=50` in the comments RSS URL. Reddit **ignores** the `limit` param for comment feeds — it always returns a fixed set regardless of the number requested. Changing this value has no effect on rate limiting or response size.
+- **Pagination:** Reddit's RSS feeds do not return a reliable `after` token for cursor-based pagination. Infinite scroll works by passing `after=<postId>` (the `t3_xxxxxx` fullname of the last post) but this is only reliable for post feeds, not comment feeds. Comment pagination is not supported — one request per post, flat list only.
 
 ---
 

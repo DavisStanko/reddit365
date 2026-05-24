@@ -39,6 +39,10 @@ export interface UseRedditReturn extends RedditState {
 // Helpers — URL building
 // ---------------------------------------------------------------------------
 
+// Number of posts requested per RSS page. Reddit RSS hard cap is 100.
+// Fetch the maximum per request to minimize total API calls.
+const PAGE_SIZE = 100;
+
 function buildPostsUrl(
   feed: string,
   sort: SortMode,
@@ -54,7 +58,7 @@ function buildPostsUrl(
     basePath = `/r/${name}`;
   }
 
-  let targetUrl = `https://old.reddit.com${basePath}/${sort}.rss?limit=15`;
+  let targetUrl = `https://old.reddit.com${basePath}/${sort}.rss?limit=${PAGE_SIZE}`;
 
   if (sort === "top") {
     targetUrl += "&t=all";
@@ -63,7 +67,10 @@ function buildPostsUrl(
     targetUrl += `&after=${after}`;
   }
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const baseUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:3000";
   const url = new URL(`${baseUrl}/api/reddit`);
   url.searchParams.set("url", targetUrl);
 
@@ -79,30 +86,172 @@ function buildCommentsUrl(
     try {
       const urlObj = new URL(permalink);
       urlObj.host = "old.reddit.com";
-      const clean = urlObj.toString().endsWith("/") ? urlObj.toString().slice(0, -1) : urlObj.toString();
+      const clean = urlObj.toString().endsWith("/")
+        ? urlObj.toString().slice(0, -1)
+        : urlObj.toString();
       targetUrl = `${clean}.rss?limit=50&sort=confidence`;
     } catch {
-      const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
+      const clean = permalink.endsWith("/")
+        ? permalink.slice(0, -1)
+        : permalink;
       targetUrl = `${clean}.rss?limit=50&sort=confidence`;
     }
   } else {
-    const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
+    const clean = permalink.endsWith("/")
+      ? permalink.slice(0, -1)
+      : permalink;
     targetUrl = `https://old.reddit.com${clean}.rss?limit=50&sort=confidence`;
   }
   if (after) {
     targetUrl += `&after=${after}`;
   }
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const baseUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:3000";
   const url = new URL(`${baseUrl}/api/reddit`);
   url.searchParams.set("url", targetUrl);
   return url.toString();
 }
 
 // ---------------------------------------------------------------------------
+// Helpers — fetch with 429 retry + backoff
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch a URL, automatically retrying on HTTP 429 (rate limited).
+ * Waits `baseDelay * (attempt + 1)` ms between attempts.
+ * Returns the Response on success, throws on non-429 errors or exhausted retries.
+ */
+async function fetchWithRetry(
+  url: string,
+  signal: AbortSignal,
+  maxRetries = 3,
+  baseDelayMs = 5000,
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    const res = await fetch(url, { signal });
+    if (res.status !== 429) return res; // success or non-rate-limit error
+    if (attempt === maxRetries) return res; // return 429 to let caller handle it
+    const waitMs = baseDelayMs * (attempt + 1);
+    console.warn(`[useReddit] 429 rate limited, retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, waitMs);
+      signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once: true });
+    });
+  }
+  throw new Error("fetchWithRetry: unreachable");
+}
+
+// ---------------------------------------------------------------------------
 // Helpers — Parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Parse an Atom/RSS post feed returned by old.reddit.com.
+ * Returns parsed posts and the `after` cursor for the next page
+ * (a Reddit fullname like `t3_xxxxxx`), or null if there are no more pages.
+ *
+ * The cursor is only set when a full page (PAGE_SIZE entries) is returned,
+ * indicating there are likely more posts available.
+ */
+function parsePostFeed(
+  text: string,
+  fallbackFeed: string,
+): { posts: Post[]; nextAfter: string | null } {
+  if (!text.trim().startsWith("<")) {
+    return { posts: [], nextAfter: null };
+  }
 
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, "text/xml");
+  const entries = Array.from(doc.querySelectorAll("entry"));
+
+  const posts: Post[] = entries.map((entry) => {
+    const title = entry.querySelector("title")?.textContent || "Untitled";
+    const authorName =
+      entry.querySelector("author > name")?.textContent?.replace("/u/", "") ||
+      "unknown";
+    const link = entry.querySelector("link")?.getAttribute("href") || "";
+    const content = entry.querySelector("content")?.textContent || "";
+    const updated = entry.querySelector("updated")?.textContent || "";
+    const idText = entry.querySelector("id")?.textContent || "";
+
+    const matchSub = link.match(/\/r\/([^\/]+)/);
+    const subreddit = matchSub ? `r/${matchSub[1]}` : fallbackFeed;
+
+    let imageUrl: string | undefined;
+    const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
+    if (imgMatch) imageUrl = imgMatch[1];
+
+    const tmp = document.createElement("div");
+    tmp.innerHTML = content;
+
+    let externalUrl: string | undefined;
+    const linkAnchors = tmp.querySelectorAll("a");
+    let linkHref = "";
+    let commentsHref = "";
+    linkAnchors.forEach((a) => {
+      if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
+      if (a.textContent === "[comments]")
+        commentsHref = a.getAttribute("href") || "";
+    });
+    if (linkHref && commentsHref && linkHref !== commentsHref)
+      externalUrl = linkHref;
+
+    let bodyText = tmp.textContent || tmp.innerText || "";
+    bodyText = bodyText
+      .replace(
+        /submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi,
+        "",
+      )
+      .trim();
+    bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
+
+    // Numeric id for dedup. The raw idText is used for cursor extraction below.
+    const numericId = idText
+      ? parseInt(idText.replace(/^t3_/, ""), 36) ||
+        Math.floor(Math.random() * 1e8)
+      : Math.floor(Math.random() * 1e8);
+
+    return {
+      id: numericId,
+      title,
+      subreddit,
+      author: authorName,
+      time: updated ? new Date(updated).toLocaleDateString() : "recent",
+      score: "0",
+      comments: 0,
+      body: bodyText,
+      imageUrl,
+      permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
+      externalUrl: externalUrl
+        ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com")
+        : undefined,
+    };
+  });
+
+  // Build the `after` cursor from the last entry's Reddit fullname.
+  // Reddit RSS <id> is either "t3_xxxxxx" or a full post URL like:
+  //   https://www.reddit.com/r/sub/comments/1u69a1o/title/
+  // Only set a cursor when we received a full page — fewer entries means end of feed.
+  let nextAfter: string | null = null;
+  if (entries.length >= PAGE_SIZE) {
+    const lastEntry = entries[entries.length - 1];
+    const rawId = lastEntry.querySelector("id")?.textContent || "";
+    if (rawId.startsWith("t3_")) {
+      nextAfter = rawId.trim();
+    } else {
+      const m = rawId.match(/\/comments\/([a-z0-9]+)\//i);
+      if (m) nextAfter = `t3_${m[1]}`;
+    }
+  }
+
+  return { posts, nextAfter };
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -157,22 +306,21 @@ export function useReddit(
   }, [feed, sort, selectedPost]);
 
   // ------------------------------------------------------------------
-  // Effect: fetch posts when feed/sort/timeframe changes
+  // Effect: fetch posts when feed/sort changes
+  // Only the currently active feed is ever fetched. This fires once per
+  // feed/sort change and never pre-fetches other feeds.
   // ------------------------------------------------------------------
   useEffect(() => {
     const controller = new AbortController();
 
     const doFetch = async () => {
-      // Reset state
       setPosts([]);
       setAfter(null);
       setHasMorePosts(true);
       setPostsError(null);
       afterRef.current = null;
-
       loadingPostsRef.current = true;
       setIsLoadingPosts(true);
-      setPostsError(null);
 
       try {
         const url = buildPostsUrl(feed, sort, null);
@@ -185,66 +333,8 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        let newPosts: Post[] = [];
-        let nextAfter: string | null = null;
+        const { posts: newPosts, nextAfter } = parsePostFeed(text, feed);
 
-        if (text.trim().startsWith("<")) {
-          // Parse Atom/RSS feed
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, "text/xml");
-          const entries = Array.from(doc.querySelectorAll("entry"));
-          
-          newPosts = entries.map((entry) => {
-            const title = entry.querySelector("title")?.textContent || "Untitled";
-            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
-            const link = entry.querySelector("link")?.getAttribute("href") || "";
-            const content = entry.querySelector("content")?.textContent || "";
-            const updated = entry.querySelector("updated")?.textContent || "";
-            const idText = entry.querySelector("id")?.textContent || "";
-            
-            const matchSub = link.match(/\/r\/([^\/]+)/);
-            const subreddit = matchSub ? `r/${matchSub[1]}` : feed;
-            
-            let imageUrl: string | undefined;
-            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
-            if (imgMatch) {
-              imageUrl = imgMatch[1];
-            }
-            
-            const tmp = document.createElement("div");
-            tmp.innerHTML = content;
-
-            let externalUrl: string | undefined;
-            const linkAnchors = tmp.querySelectorAll("a");
-            let linkHref = "";
-            let commentsHref = "";
-            linkAnchors.forEach((a) => {
-              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
-              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
-            });
-            if (linkHref && commentsHref && linkHref !== commentsHref) {
-              externalUrl = linkHref;
-            }
-
-            let bodyText = tmp.textContent || tmp.innerText || "";
-            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
-            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
-            
-            return {
-              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
-              title,
-              subreddit,
-              author: authorName,
-              time: updated ? new Date(updated).toLocaleDateString() : "recent",
-              score: "0",
-              comments: 0,
-              body: bodyText,
-              imageUrl,
-              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
-              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
-            };
-          });
-        }
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
@@ -272,6 +362,8 @@ export function useReddit(
 
   // ------------------------------------------------------------------
   // Effect: fetch comments when selectedPost changes
+  // Comments are ONLY fetched when a post is explicitly selected.
+  // Never pre-fetched or fetched speculatively.
   // ------------------------------------------------------------------
   useEffect(() => {
     const controller = new AbortController();
@@ -281,20 +373,19 @@ export function useReddit(
     const permalink = selectedPost.permalink;
 
     const doFetch = async () => {
-      // Reset comments
       setComments([]);
       setCommentsAfter(null);
       setHasMoreComments(true);
       setCommentsError(null);
       commentsAfterRef.current = null;
-
       loadingCommentsRef.current = true;
       setIsLoadingComments(true);
-      setCommentsError(null);
 
       try {
         const url = buildCommentsUrl(permalink, null);
-        const res = await fetch(url, { signal: controller.signal });
+        // Use fetchWithRetry so a 429 from Reddit is handled transparently
+        // with exponential backoff (5s, 10s, 15s) rather than surfacing as an error.
+        const res = await fetchWithRetry(url, controller.signal);
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
@@ -309,28 +400,34 @@ export function useReddit(
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, "text/xml");
           const entries = Array.from(doc.querySelectorAll("entry"));
-          // In Reddit's comment RSS feed, the first <entry> is ALWAYS the post itself.
-          // We slice(1) to drop the post and only map the actual comments.
+          // The first <entry> in Reddit's comment RSS is always the post itself — skip it.
           newComments = entries.slice(1).map((entry) => {
-            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
+            const authorName =
+              entry.querySelector("author > name")?.textContent?.replace(
+                "/u/",
+                "",
+              ) || "unknown";
             const content = entry.querySelector("content")?.textContent || "";
             const updated = entry.querySelector("updated")?.textContent || "";
-            const idText = entry.querySelector("id")?.textContent || String(Math.random());
-            
+            const idText =
+              entry.querySelector("id")?.textContent || String(Math.random());
+
             const tmp = document.createElement("div");
             tmp.innerHTML = content;
             const bodyText = tmp.textContent || tmp.innerText || "";
-            
+
             return {
               id: idText,
               author: authorName,
-              time: updated ? new Date(updated).toLocaleDateString() : "recent",
+              time: updated
+                ? new Date(updated).toLocaleDateString()
+                : "recent",
               score: "0",
               body: bodyText,
               depth: 0,
             };
           });
-          
+
           commentsAfterRef.current = null;
           setCommentsAfter(null);
           setHasMoreComments(false);
@@ -361,7 +458,7 @@ export function useReddit(
   }, [selectedPost?.id, selectedPost?.permalink]);
 
   // ------------------------------------------------------------------
-  // loadMorePosts — append next page
+  // loadMorePosts — append next page on scroll
   // ------------------------------------------------------------------
   const loadMorePosts = useCallback(() => {
     if (loadingPostsRef.current || !afterRef.current) return;
@@ -374,11 +471,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildPostsUrl(
-          feedRef.current,
-          sortRef.current,
-          currentAfter,
-        );
+        const url = buildPostsUrl(feedRef.current, sortRef.current, currentAfter);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
@@ -388,67 +481,8 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        let newPosts: Post[] = [];
-        let nextAfter: string | null = null;
+        const { posts: newPosts, nextAfter } = parsePostFeed(text, feedRef.current);
 
-        if (text.trim().startsWith("<")) {
-          // Parse Atom/RSS feed
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, "text/xml");
-          const entries = Array.from(doc.querySelectorAll("entry"));
-          
-          newPosts = entries.map((entry) => {
-            const title = entry.querySelector("title")?.textContent || "Untitled";
-            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
-            const link = entry.querySelector("link")?.getAttribute("href") || "";
-            const content = entry.querySelector("content")?.textContent || "";
-            const updated = entry.querySelector("updated")?.textContent || "";
-            const idText = entry.querySelector("id")?.textContent || "";
-            
-            const matchSub = link.match(/\/r\/([^\/]+)/);
-            const subreddit = matchSub ? `r/${matchSub[1]}` : feedRef.current;
-            
-            let imageUrl: string | undefined;
-            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
-            if (imgMatch) {
-              imageUrl = imgMatch[1];
-            }
-            
-            const tmp = document.createElement("div");
-            tmp.innerHTML = content;
-
-            let externalUrl: string | undefined;
-            const linkAnchors = tmp.querySelectorAll("a");
-            let linkHref = "";
-            let commentsHref = "";
-            linkAnchors.forEach((a) => {
-              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
-              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
-            });
-            if (linkHref && commentsHref && linkHref !== commentsHref) {
-              externalUrl = linkHref;
-            }
-
-            let bodyText = tmp.textContent || tmp.innerText || "";
-            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
-            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
-            
-            return {
-              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
-              title,
-              subreddit,
-              author: authorName,
-              time: updated ? new Date(updated).toLocaleDateString() : "recent",
-              score: "0",
-              comments: 0,
-              body: bodyText,
-              imageUrl,
-              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
-              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
-            };
-          });
-          nextAfter = null;
-        }
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
@@ -474,18 +508,16 @@ export function useReddit(
   }, []);
 
   // ------------------------------------------------------------------
-  // loadMoreComments — append next page
+  // loadMoreComments — not supported by Reddit RSS
   // ------------------------------------------------------------------
   const loadMoreComments = useCallback(() => {
-    // Comments pagination is not supported by RSS
+    // Comments pagination is not supported via RSS — one request per post.
   }, []);
 
   // ------------------------------------------------------------------
   // refreshPosts — force re-fetch from page 1
   // ------------------------------------------------------------------
   const refreshPosts = useCallback(() => {
-    // Reset state and re-trigger the effect by... we can't retrigger easily.
-    // Instead, directly fetch.
     setPosts([]);
     setAfter(null);
     setHasMorePosts(true);
@@ -498,11 +530,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildPostsUrl(
-          feedRef.current,
-          sortRef.current,
-          null,
-        );
+        const url = buildPostsUrl(feedRef.current, sortRef.current, null);
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
@@ -512,66 +540,8 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        let newPosts: Post[] = [];
-        let nextAfter: string | null = null;
+        const { posts: newPosts, nextAfter } = parsePostFeed(text, feedRef.current);
 
-        if (text.trim().startsWith("<")) {
-          // Parse Atom/RSS feed
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, "text/xml");
-          const entries = Array.from(doc.querySelectorAll("entry"));
-          
-          newPosts = entries.map((entry) => {
-            const title = entry.querySelector("title")?.textContent || "Untitled";
-            const authorName = entry.querySelector("author > name")?.textContent?.replace("/u/", "") || "unknown";
-            const link = entry.querySelector("link")?.getAttribute("href") || "";
-            const content = entry.querySelector("content")?.textContent || "";
-            const updated = entry.querySelector("updated")?.textContent || "";
-            const idText = entry.querySelector("id")?.textContent || "";
-            
-            const matchSub = link.match(/\/r\/([^\/]+)/);
-            const subreddit = matchSub ? `r/${matchSub[1]}` : feedRef.current;
-            
-            let imageUrl: string | undefined;
-            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
-            if (imgMatch) {
-              imageUrl = imgMatch[1];
-            }
-            
-            const tmp = document.createElement("div");
-            tmp.innerHTML = content;
-
-            let externalUrl: string | undefined;
-            const linkAnchors = tmp.querySelectorAll("a");
-            let linkHref = "";
-            let commentsHref = "";
-            linkAnchors.forEach((a) => {
-              if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
-              if (a.textContent === "[comments]") commentsHref = a.getAttribute("href") || "";
-            });
-            if (linkHref && commentsHref && linkHref !== commentsHref) {
-              externalUrl = linkHref;
-            }
-
-            let bodyText = tmp.textContent || tmp.innerText || "";
-            bodyText = bodyText.replace(/submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi, "").trim();
-            bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
-            
-            return {
-              id: idText ? parseInt(idText.replace(/^t3_/, ""), 36) || Math.floor(Math.random() * 1e8) : Math.floor(Math.random() * 1e8),
-              title,
-              subreddit,
-              author: authorName,
-              time: updated ? new Date(updated).toLocaleDateString() : "recent",
-              score: "0",
-              comments: 0,
-              body: bodyText,
-              imageUrl,
-              permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
-              externalUrl: externalUrl ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com") : undefined,
-            };
-          });
-        }
         afterRef.current = nextAfter;
         setAfter(nextAfter);
         setHasMorePosts(nextAfter !== null);
@@ -610,4 +580,3 @@ export function useReddit(
     refreshPosts,
   };
 }
-
