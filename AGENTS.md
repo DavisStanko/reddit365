@@ -137,6 +137,19 @@ The ONLY viable path forward for a basic read-only frontend is using Reddit's pu
 
 ---
 
+## Data Fetching Behaviour
+
+**These rules govern when and how Reddit RSS data is fetched. Follow them exactly — violating them causes rate-limit (429) errors.**
+
+1. **One feed at a time.** Only the *currently selected* feed (subreddit + sort) is fetched. Never pre-fetch or eagerly load other feeds in the background.
+2. **Initial load.** When the app mounts or the active feed changes (different subreddit, or different sort: Hot / New / Top), fetch the first page of posts immediately.
+3. **Infinite scroll / Load more.** Append additional posts only when the user scrolls to the bottom of the Message List. Use the `loadMorePosts` callback from `useReddit`. Do not pre-fetch next pages.
+4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background.
+5. **Server-side cache.** The API proxy (`app/api/reddit/route.ts`) caches each RSS URL for 60 seconds in-process. This shields Reddit from burst requests on navigation. Do not set `Cache-Control: no-store` on successful responses.
+6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh by re-selecting the feed or changing the sort tab.
+
+---
+
 ## Key Rules
 
 1. **Pixel-perfect Outlook fidelity is the #1 priority.** When in doubt, look at New Outlook and match it exactly.
@@ -171,6 +184,6 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
-- [x] **Feed Fetching & Pagination**: Implemented fetching via Reddit's public RSS feeds to bypass `.json` API blocks. (Note: Only fetches the latest posts; deep comment trees and infinite scroll are not supported by design due to RSS limitations).
+- [x] **Feed Fetching & Pagination**: Implemented fetching via Reddit's public RSS feeds to bypass `.json` API blocks. Fetches one page on feed selection, loads more on infinite scroll, fetches comments only when a post is selected. Deep nested comment trees are not available via RSS (flat list only).
 - [ ] **Subreddit List Persistence & Editing**: Subreddit list should persist via `localStorage` and be editable (new message icon to add sub, 3 dots to show delete, drag and drop). (Partially Implemented - local storage persistence exists, drag and drop / full editing UI needs work)
 - [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current without triggering rate limits. (Partially Implemented)
