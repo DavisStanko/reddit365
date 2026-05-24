@@ -17,6 +17,7 @@ import { useSettings } from "@/components/settings-context";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { FlatComment } from "@/lib/types";
+import { linkifyText } from "@/lib/linkify";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
   const depth = comment.depth;
@@ -38,19 +39,27 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
           marginBottom: "4px",
         }}
       >
-        <strong>u/{comment.author}</strong>
+        <a 
+          href={`https://reddit.com/u/${comment.author}`} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="outlook-link"
+          style={{ fontWeight: "600" }}
+        >
+          u/{comment.author}
+        </a>
       </div>
       <div
         className="reading-view__comment-body"
         style={{ fontSize: "14px", lineHeight: "1.5", whiteSpace: "pre-wrap" }}
       >
-        {comment.body}
+        {linkifyText(comment.body)}
       </div>
     </div>
   );
 }
 
-function CommentThread() {
+function CommentThread({ hasBody }: { hasBody: boolean }) {
   const {
     comments,
     isLoadingComments,
@@ -92,7 +101,7 @@ function CommentThread() {
   return (
     <div
       className="reading-view__comments"
-      style={{ marginTop: "24px", paddingBottom: "40px" }}
+      style={{ marginTop: hasBody ? "24px" : "12px", paddingBottom: "40px" }}
     >
       <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
         Replies
@@ -196,11 +205,27 @@ export function ContentPane() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <strong style={{ fontSize: "14px", color: "var(--outlook-text-primary)" }}>{post.author}</strong>
+                  <a 
+                    href={`https://reddit.com/u/${post.author}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="outlook-link"
+                    style={{ fontSize: "14px", fontWeight: "600" }}
+                  >
+                    u/{post.author}
+                  </a>
                   <span style={{ fontSize: "12px", color: "var(--outlook-text-tertiary)" }}>{post.time}</span>
                 </div>
                 <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px" }}>
-                  To: {post.subreddit}
+                  To: <a 
+                    href={`https://reddit.com/r/${post.subreddit}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="outlook-link"
+                    style={{ fontWeight: "600" }}
+                  >
+                    r/{post.subreddit}
+                  </a>
                 </div>
               </div>
             </div>
@@ -242,21 +267,28 @@ export function ContentPane() {
           </div>
         )}
 
-        <div
-          className="reading-view__body"
-          style={{
-            paddingBottom: "24px",
-            borderBottom: "1px solid var(--outlook-border)",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {post.body}
-        </div>
+        {post.body && post.body.trim().length > 0 && (
+          <div
+            className="reading-view__body"
+            style={{
+              padding: "0 24px 24px",
+              borderBottom: "1px solid var(--outlook-border)",
+              whiteSpace: "pre-wrap",
+              fontSize: "15px",
+              lineHeight: "1.6",
+            }}
+          >
+            {linkifyText(post.body)}
+          </div>
+        )}
 
         {post.permalink && (
-          <CommentThread key={post.id} />
+          <CommentThread key={post.id} hasBody={!!(post.body && post.body.trim().length > 0)} />
         )}
       </div>
     </section>
+  );
+}
+ction>
   );
 }
