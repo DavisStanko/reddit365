@@ -22,6 +22,7 @@ export function PostList() {
     isLoadingPosts,
     hasMorePosts,
     postsError,
+    postsRetryInfo,
     loadMorePosts,
     refreshPosts,
   } = useRedditContext();
@@ -142,10 +143,32 @@ export function PostList() {
 
         {isLoadingPosts && (
           <div className="post-list__loading" aria-live="polite">
-            <div className="post-list__loading-row" />
-            <div className="post-list__loading-row post-list__loading-row--short" />
-            <div className="post-list__loading-row" />
-            <div className="post-list__loading-row post-list__loading-row--short" />
+            {!postsRetryInfo ? (
+              <>
+                <div className="post-list__loading-row" />
+                <div className="post-list__loading-row post-list__loading-row--short" />
+                <div className="post-list__loading-row" />
+                <div className="post-list__loading-row post-list__loading-row--short" />
+              </>
+            ) : (
+              <div 
+                style={{ 
+                  margin: "12px 16px", 
+                  padding: "12px", 
+                  backgroundColor: "#FFF4CE", 
+                  borderLeft: "4px solid #FFB900",
+                  fontSize: "13px",
+                  lineHeight: "1.5"
+                }}
+              >
+                <div style={{ fontWeight: "600", marginBottom: "4px" }}>Rate Limited (429)</div>
+                <div style={{ color: "var(--outlook-text-secondary)" }}>
+                  Attempt {postsRetryInfo.attempt}
+                  <br />
+                  Retrying in <strong style={{ color: "var(--outlook-text-primary)" }}>{postsRetryInfo.retryInSeconds}s</strong>...
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -15,18 +15,28 @@ import type { Post, FlatComment } from "./types";
 // ---------------------------------------------------------------------------
 
 export type SortMode = "hot" | "new" | "top";
+
+export interface RetryInfo {
+  /** Which retry we are on (1-based: 1 means first retry after initial failure). */
+  attempt: number;
+  /** Seconds we are waiting before this retry fires. */
+  retryInSeconds: number;
+}
+
 interface RedditState {
   posts: Post[];
   after: string | null;
   isLoadingPosts: boolean;
   hasMorePosts: boolean;
   postsError: string | null;
+  postsRetryInfo: RetryInfo | null;
 
   comments: FlatComment[];
   commentsAfter: string | null;
   isLoadingComments: boolean;
   hasMoreComments: boolean;
   commentsError: string | null;
+  commentsRetryInfo: RetryInfo | null;
 }
 
 export interface UseRedditReturn extends RedditState {
@@ -39,8 +49,8 @@ export interface UseRedditReturn extends RedditState {
 // Helpers — URL building
 // ---------------------------------------------------------------------------
 
-// Number of posts requested per RSS page. Reddit RSS hard cap is 100.
-// Fetch the maximum per request to minimize total API calls.
+// Fetch the maximum posts per request to minimise total Reddit API calls.
+// Reddit's RSS hard cap is 100.
 const PAGE_SIZE = 100;
 
 function buildPostsUrl(
@@ -73,14 +83,10 @@ function buildPostsUrl(
       : "http://localhost:3000";
   const url = new URL(`${baseUrl}/api/reddit`);
   url.searchParams.set("url", targetUrl);
-
   return url.toString();
 }
 
-function buildCommentsUrl(
-  permalink: string,
-  after: string | null,
-): string {
+function buildCommentsUrl(permalink: string, after: string | null): string {
   let targetUrl = permalink;
   if (permalink.startsWith("http")) {
     try {
@@ -97,14 +103,11 @@ function buildCommentsUrl(
       targetUrl = `${clean}.rss?limit=50&sort=confidence`;
     }
   } else {
-    const clean = permalink.endsWith("/")
-      ? permalink.slice(0, -1)
-      : permalink;
+    const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
     targetUrl = `https://old.reddit.com${clean}.rss?limit=50&sort=confidence`;
   }
-  if (after) {
-    targetUrl += `&after=${after}`;
-  }
+  if (after) targetUrl += `&after=${after}`;
+
   const baseUrl =
     typeof window !== "undefined"
       ? window.location.origin
@@ -120,28 +123,62 @@ function buildCommentsUrl(
 
 /**
  * Fetch a URL, automatically retrying on HTTP 429 (rate limited).
- * Waits `baseDelay * (attempt + 1)` ms between attempts.
- * Returns the Response on success, throws on non-429 errors or exhausted retries.
+ * Waits `baseDelayMs * (attempt + 1)` ms between attempts.
+ *
+ * @param onRetry  Called just before each retry with the current retry status.
+ *                 Use this to update UI (e.g. "Attempt 1/3, retrying in 5s").
  */
 async function fetchWithRetry(
   url: string,
   signal: AbortSignal,
-  maxRetries = 3,
-  baseDelayMs = 5000,
+  delayMs = 4000,
+  onRetry?: (info: RetryInfo) => void,
 ): Promise<Response> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  let attempt = 0;
+  while (true) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const res = await fetch(url, { signal });
-    if (res.status !== 429) return res; // success or non-rate-limit error
-    if (attempt === maxRetries) return res; // return 429 to let caller handle it
-    const waitMs = baseDelayMs * (attempt + 1);
-    console.warn(`[useReddit] 429 rate limited, retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+    if (res.status !== 429) return res;           // success or non-429 error
+    
+    attempt++;
+    const waitMs = delayMs;
+    // Start countdown one second less than total wait so it shows 3... 2... 1... 0
+    let remainingSeconds = Math.round(waitMs / 1000) - 1;
+    const info: RetryInfo = {
+      attempt,
+      retryInSeconds: remainingSeconds,
+    };
+    
+    console.warn(
+      `[useReddit] 429 — retrying in ${remainingSeconds + 1}s (attempt ${info.attempt})`,
+    );
+    onRetry?.(info);
+
     await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(resolve, waitMs);
-      signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once: true });
+      let interval: ReturnType<typeof setInterval>;
+      
+      const tick = () => {
+        remainingSeconds--;
+        if (remainingSeconds < 0) {
+          clearInterval(interval);
+          resolve();
+        } else {
+          onRetry?.({ ...info, retryInSeconds: remainingSeconds });
+        }
+      };
+      
+      interval = setInterval(tick, 1000);
+
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearInterval(interval);
+          reject(new DOMException("Aborted", "AbortError"));
+        },
+        { once: true },
+      );
     });
   }
-  throw new Error("fetchWithRetry: unreachable");
 }
 
 // ---------------------------------------------------------------------------
@@ -151,10 +188,7 @@ async function fetchWithRetry(
 /**
  * Parse an Atom/RSS post feed returned by old.reddit.com.
  * Returns parsed posts and the `after` cursor for the next page
- * (a Reddit fullname like `t3_xxxxxx`), or null if there are no more pages.
- *
- * The cursor is only set when a full page (PAGE_SIZE entries) is returned,
- * indicating there are likely more posts available.
+ * (a Reddit fullname like `t3_xxxxxx`), or null if at the end of the feed.
  */
 function parsePostFeed(
   text: string,
@@ -209,7 +243,6 @@ function parsePostFeed(
       .trim();
     bodyText = bodyText.replace(/\[link\]\s+\[comments\]/gi, "").trim();
 
-    // Numeric id for dedup. The raw idText is used for cursor extraction below.
     const numericId = idText
       ? parseInt(idText.replace(/^t3_/, ""), 36) ||
         Math.floor(Math.random() * 1e8)
@@ -233,9 +266,7 @@ function parsePostFeed(
   });
 
   // Build the `after` cursor from the last entry's Reddit fullname.
-  // Reddit RSS <id> is either "t3_xxxxxx" or a full post URL like:
-  //   https://www.reddit.com/r/sub/comments/1u69a1o/title/
-  // Only set a cursor when we received a full page — fewer entries means end of feed.
+  // Only set when we got a full page — fewer entries means end of feed.
   let nextAfter: string | null = null;
   if (entries.length >= PAGE_SIZE) {
     const lastEntry = entries[entries.length - 1];
@@ -266,6 +297,7 @@ export function useReddit(
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [postsError, setPostsError] = useState<string | null>(null);
+  const [postsRetryInfo, setPostsRetryInfo] = useState<RetryInfo | null>(null);
 
   // Synchronously reset posts when feed or sort changes to avoid stale data
   const [prevFeed, setPrevFeed] = useState(feed);
@@ -278,6 +310,7 @@ export function useReddit(
     setAfter(null);
     setHasMorePosts(true);
     setPostsError(null);
+    setPostsRetryInfo(null);
     setIsLoadingPosts(true);
   }
 
@@ -287,6 +320,7 @@ export function useReddit(
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [hasMoreComments, setHasMoreComments] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsRetryInfo, setCommentsRetryInfo] = useState<RetryInfo | null>(null);
 
   // ---- Refs to avoid stale closures ----
   const afterRef = useRef<string | null>(null);
@@ -294,7 +328,6 @@ export function useReddit(
   const commentsAfterRef = useRef<string | null>(null);
   const loadingCommentsRef = useRef(false);
 
-  // Stable refs for current params (used by loadMore callbacks)
   const feedRef = useRef(feed);
   const sortRef = useRef(sort);
   const selectedPostRef = useRef(selectedPost);
@@ -307,8 +340,6 @@ export function useReddit(
 
   // ------------------------------------------------------------------
   // Effect: fetch posts when feed/sort changes
-  // Only the currently active feed is ever fetched. This fires once per
-  // feed/sort change and never pre-fetches other feeds.
   // ------------------------------------------------------------------
   useEffect(() => {
     const controller = new AbortController();
@@ -318,13 +349,22 @@ export function useReddit(
       setAfter(null);
       setHasMorePosts(true);
       setPostsError(null);
+      setPostsRetryInfo(null);
       afterRef.current = null;
       loadingPostsRef.current = true;
       setIsLoadingPosts(true);
 
       try {
         const url = buildPostsUrl(feed, sort, null);
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await fetchWithRetry(
+          url,
+          controller.signal,
+          5,
+          10000,
+          (info) => setPostsRetryInfo(info),
+        );
+        setPostsRetryInfo(null);
+
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
@@ -343,6 +383,7 @@ export function useReddit(
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] posts fetch failed:", err);
         setPostsError(err instanceof Error ? err.message : String(err));
+        setPostsRetryInfo(null);
         setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
@@ -362,8 +403,6 @@ export function useReddit(
 
   // ------------------------------------------------------------------
   // Effect: fetch comments when selectedPost changes
-  // Comments are ONLY fetched when a post is explicitly selected.
-  // Never pre-fetched or fetched speculatively.
   // ------------------------------------------------------------------
   useEffect(() => {
     const controller = new AbortController();
@@ -377,15 +416,21 @@ export function useReddit(
       setCommentsAfter(null);
       setHasMoreComments(true);
       setCommentsError(null);
+      setCommentsRetryInfo(null);
       commentsAfterRef.current = null;
       loadingCommentsRef.current = true;
       setIsLoadingComments(true);
 
       try {
         const url = buildCommentsUrl(permalink, null);
-        // Use fetchWithRetry so a 429 from Reddit is handled transparently
-        // with exponential backoff (5s, 10s, 15s) rather than surfacing as an error.
-        const res = await fetchWithRetry(url, controller.signal);
+        const res = await fetchWithRetry(
+          url,
+          controller.signal,
+          4000,
+          (info) => setCommentsRetryInfo(info),
+        );
+        setCommentsRetryInfo(null);
+
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
@@ -403,12 +448,12 @@ export function useReddit(
           // The first <entry> in Reddit's comment RSS is always the post itself — skip it.
           newComments = entries.slice(1).map((entry) => {
             const authorName =
-              entry.querySelector("author > name")?.textContent?.replace(
-                "/u/",
-                "",
-              ) || "unknown";
+              entry
+                .querySelector("author > name")
+                ?.textContent?.replace("/u/", "") || "unknown";
             const content = entry.querySelector("content")?.textContent || "";
-            const updated = entry.querySelector("updated")?.textContent || "";
+            const updated =
+              entry.querySelector("updated")?.textContent || "";
             const idText =
               entry.querySelector("id")?.textContent || String(Math.random());
 
@@ -440,6 +485,7 @@ export function useReddit(
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] comments fetch failed:", err);
         setCommentsError(err instanceof Error ? err.message : String(err));
+        setCommentsRetryInfo(null);
         setHasMoreComments(false);
       } finally {
         if (!controller.signal.aborted) {
@@ -466,13 +512,25 @@ export function useReddit(
     const currentAfter = afterRef.current;
     loadingPostsRef.current = true;
     setIsLoadingPosts(true);
+    setPostsRetryInfo(null);
 
     const controller = new AbortController();
 
     const doFetch = async () => {
       try {
-        const url = buildPostsUrl(feedRef.current, sortRef.current, currentAfter);
-        const res = await fetch(url, { signal: controller.signal });
+        const url = buildPostsUrl(
+          feedRef.current,
+          sortRef.current,
+          currentAfter,
+        );
+        const res = await fetchWithRetry(
+          url,
+          controller.signal,
+          4000,
+          (info) => setPostsRetryInfo(info),
+        );
+        setPostsRetryInfo(null);
+
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
@@ -481,7 +539,10 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const { posts: newPosts, nextAfter } = parsePostFeed(text, feedRef.current);
+        const { posts: newPosts, nextAfter } = parsePostFeed(
+          text,
+          feedRef.current,
+        );
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
@@ -494,7 +555,8 @@ export function useReddit(
         });
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] load more posts blocked/failed:", err);
+        console.warn("[useReddit] load more posts failed:", err);
+        setPostsRetryInfo(null);
         setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
@@ -511,7 +573,7 @@ export function useReddit(
   // loadMoreComments — not supported by Reddit RSS
   // ------------------------------------------------------------------
   const loadMoreComments = useCallback(() => {
-    // Comments pagination is not supported via RSS — one request per post.
+    // Comment pagination is not supported via RSS — one request per post.
   }, []);
 
   // ------------------------------------------------------------------
@@ -522,6 +584,7 @@ export function useReddit(
     setAfter(null);
     setHasMorePosts(true);
     setPostsError(null);
+    setPostsRetryInfo(null);
     afterRef.current = null;
     loadingPostsRef.current = false;
 
@@ -531,7 +594,14 @@ export function useReddit(
     const doFetch = async () => {
       try {
         const url = buildPostsUrl(feedRef.current, sortRef.current, null);
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await fetchWithRetry(
+          url,
+          controller.signal,
+          4000,
+          (info) => setPostsRetryInfo(info),
+        );
+        setPostsRetryInfo(null);
+
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
@@ -540,7 +610,10 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const { posts: newPosts, nextAfter } = parsePostFeed(text, feedRef.current);
+        const { posts: newPosts, nextAfter } = parsePostFeed(
+          text,
+          feedRef.current,
+        );
 
         afterRef.current = nextAfter;
         setAfter(nextAfter);
@@ -550,6 +623,7 @@ export function useReddit(
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] refresh failed:", err);
         setPostsError(err instanceof Error ? err.message : String(err));
+        setPostsRetryInfo(null);
         setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
@@ -568,12 +642,14 @@ export function useReddit(
     isLoadingPosts,
     hasMorePosts,
     postsError,
+    postsRetryInfo,
 
     comments,
     commentsAfter,
     isLoadingComments,
     hasMoreComments,
     commentsError,
+    commentsRetryInfo,
 
     loadMorePosts,
     loadMoreComments,
