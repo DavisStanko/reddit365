@@ -66,21 +66,25 @@ function setCached(key: string, text: string) {
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
+  const forceRefresh = request.nextUrl.searchParams.get("forceRefresh") === "true";
+  
   if (!url) return new NextResponse("Missing url param", { status: 400 });
 
-  // Serve from cache if present and fresh (up to 24h)
-  const cached = getCached(url);
-  if (cached) {
-    console.log("[Proxy] Cache HIT:", url.slice(0, 80));
-    return new NextResponse(cached, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/xml",
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-        "X-Cache": "HIT",
-      },
-    });
+  // Serve from cache if present and fresh (up to 24h), unless forceRefresh is true
+  if (!forceRefresh) {
+    const cached = getCached(url);
+    if (cached) {
+      console.log("[Proxy] Cache HIT:", url.slice(0, 80));
+      return new NextResponse(cached, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/xml",
+          "Cache-Control": "public, max-age=86400",
+          "Access-Control-Allow-Origin": "*",
+          "X-Cache": "HIT",
+        },
+      });
+    }
   }
 
   try {
