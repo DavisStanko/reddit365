@@ -234,6 +234,20 @@ export function useReddit(
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [postsError, setPostsError] = useState<string | null>(null);
 
+  // Synchronously reset posts when feed or sort changes to avoid stale data
+  const [prevFeed, setPrevFeed] = useState(feed);
+  const [prevSort, setPrevSort] = useState(sort);
+
+  if (feed !== prevFeed || sort !== prevSort) {
+    setPrevFeed(feed);
+    setPrevSort(sort);
+    setPosts([]);
+    setAfter(null);
+    setHasMorePosts(true);
+    setPostsError(null);
+    setIsLoadingPosts(true);
+  }
+
   // ---- Comments state ----
   const [comments, setComments] = useState<FlatComment[]>([]);
   const [commentsAfter, setCommentsAfter] = useState<string | null>(null);

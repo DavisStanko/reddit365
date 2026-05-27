@@ -868,13 +868,18 @@ body {
 }
 
 .post-item:hover .post-item__title {
+  color: var(--outlook-text-primary);
+  text-decoration: none;
+}
+
+.reading-view__title a:hover {
   color: var(--outlook-blue);
   text-decoration: underline;
 }
 
 .post-item__sub:hover,
 .post-item__author:hover {
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -885,6 +890,17 @@ body {
 }
 
 .outlook-link:hover {
+  text-decoration: underline;
+}
+
+.reading-view__meta-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.reading-view__meta-link:hover {
+  color: var(--outlook-blue);
   text-decoration: underline;
 }
 
@@ -932,7 +948,7 @@ body {
 }
 
 .post-item__sub {
-  color: #0066cc;
+  color: var(--outlook-text-secondary);
   font-weight: 600;
 }
 

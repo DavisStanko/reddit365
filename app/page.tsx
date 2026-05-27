@@ -40,9 +40,8 @@ export default function Home() {
 
   return (
     <AppProvider>
-      <SettingsProvider>
-        <RedditProvider>
-          <div className="outlook-shell">
+      <RedditProvider>
+        <div className="outlook-shell">
             {/* Top ribbon/nav bar */}
             <TopBar folderWidth={folderWidth} listWidth={listWidth} />
 

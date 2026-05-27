@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   type ReactNode,
 } from "react";
 import { useAppContext } from "@/components/app-context";
@@ -16,7 +17,7 @@ const RedditContext = createContext<UseRedditReturn | null>(null);
  * and exposes all fetched state to children.
  */
 export function RedditProvider({ children }: { children: ReactNode }) {
-  const { activeFeed, currentSort, selectedPost } =
+  const { activeFeed, currentSort, selectedPost, setSelectedPost } =
     useAppContext();
 
   const reddit = useReddit(
@@ -24,6 +25,15 @@ export function RedditProvider({ children }: { children: ReactNode }) {
     currentSort,
     selectedPost,
   );
+
+  const { posts, isLoadingPosts } = reddit;
+
+  // Auto-select first post on load if none selected and not loading
+  useEffect(() => {
+    if (!isLoadingPosts && !selectedPost && posts.length > 0) {
+      setSelectedPost(posts[0]);
+    }
+  }, [posts, selectedPost, setSelectedPost, isLoadingPosts]);
 
   return (
     <RedditContext.Provider value={reddit}>
