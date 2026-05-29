@@ -15,7 +15,7 @@ import type { Post, FlatComment } from "./types";
 // ---------------------------------------------------------------------------
 
 export type SortMode = "hot" | "new" | "top";
-export interface RedditState {
+interface RedditState {
   posts: Post[];
   after: string | null;
   isLoadingPosts: boolean;

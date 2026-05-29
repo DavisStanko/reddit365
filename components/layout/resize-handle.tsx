@@ -1,8 +1,6 @@
 "use client";
 
 interface ResizeHandleProps {
-  /** Callback fires with the delta in pixels the handle has moved */
-  onResize: (deltaX: number) => void;
   /** Optional className override */
   className?: string;
 }
