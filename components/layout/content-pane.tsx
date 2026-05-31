@@ -10,15 +10,14 @@ import type { FlatComment } from "@/lib/types";
 import { linkifyText } from "@/lib/linkify";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
-  const depth = comment.depth;
   return (
     <div
-      className={`reading-view__comment depth-${depth}`}
+      className={`reading-view__comment depth-0`}
       style={{
-        marginLeft: depth > 0 ? "24px" : "0",
+        marginLeft: "0",
         marginTop: "12px",
-        borderLeft: depth > 0 ? "2px solid #E0E0E0" : "none",
-        paddingLeft: depth > 0 ? "12px" : "0",
+        borderLeft: "none",
+        paddingLeft: "0",
       }}
     >
       <div

@@ -4,8 +4,6 @@ export interface Post {
   subreddit: string;
   author: string;
   time: string;
-  score: string;
-  comments: number;
   body: string;
   imageUrl?: string;
   mediaUrl?: string;
@@ -18,7 +16,5 @@ export interface FlatComment {
   id: string;
   author: string;
   time: string;
-  score: string;
   body: string;
-  depth: number;
 }
