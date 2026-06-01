@@ -27,11 +27,28 @@ export function PostList() {
   } = useRedditContext();
 
   const listRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll to top when feed/sort changes
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [activeFeed, currentSort]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMorePosts && !isLoadingPosts) {
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMorePosts, isLoadingPosts, loadMorePosts]);
 
   return (
     <div className="post-list">
@@ -120,16 +137,8 @@ export function PostList() {
           );
         })}
 
-        {!isLoadingPosts && hasMorePosts && posts.length > 0 && (
-          <div className="post-list__load-more-wrapper">
-            <button
-              className="post-list__load-more-btn"
-              onClick={loadMorePosts}
-            >
-              Load more posts
-            </button>
-          </div>
-        )}
+        {/* Sentinel for infinite scroll */}
+        <div ref={sentinelRef} style={{ height: 1 }} />
 
         {isLoadingPosts && (
           <div className="post-list__loading" aria-live="polite">

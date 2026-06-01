@@ -28,12 +28,17 @@ export function RedditProvider({ children }: { children: ReactNode }) {
 
   const { posts, isLoadingPosts } = reddit;
 
-  // Auto-select first post on load if none selected and not loading
+  // Auto-select first post on load if none selected and not loading.
+  // Delayed 2s to avoid bursting Reddit's rate limit with posts + comments
+  // requests firing simultaneously on page load.
   useEffect(() => {
-    if (!isLoadingPosts && !selectedPost && posts.length > 0) {
+    if (isLoadingPosts || selectedPost || posts.length === 0) return;
+    const timer = setTimeout(() => {
       setSelectedPost(posts[0]);
-    }
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [posts, selectedPost, setSelectedPost, isLoadingPosts]);
+
 
   return (
     <RedditContext.Provider value={reddit}>
