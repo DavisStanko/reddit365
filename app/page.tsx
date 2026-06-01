@@ -31,7 +31,7 @@ function HomeContent() {
   return (
     <div className="outlook-shell">
       {/* Top Header Image */}
-      <div style={{ position: "relative", width: "100%", height: "49px", flexShrink: 0 }}>
+      <div style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0 }}>
         <Image src="/images/top-header.png" alt="Top Header" fill style={{ objectFit: "cover", objectPosition: "left top" }} priority unoptimized />
       </div>
 
@@ -43,7 +43,7 @@ function HomeContent() {
 
         <div className="outlook-shell__main-area">
           {/* Second Header Image with invisible button */}
-          <div style={{ position: "relative", width: "100%", height: "85px", flexShrink: 0, backgroundColor: "#f5f5f5" }}>
+          <div style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5" }}>
             <Image src="/images/second-header.png" alt="Ribbon" fill style={{ objectFit: "cover", objectPosition: "left top" }} priority unoptimized />
             <button
               onClick={() => setShowAddDialog(true)}
