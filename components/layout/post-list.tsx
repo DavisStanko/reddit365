@@ -124,18 +124,13 @@ export function PostList() {
               }}
             >
               <div className="post-item__content">
-                <h3 className="post-item__title">{post.title}</h3>
-                <div className="post-item__meta">
-                  <span className="post-item__sub">
-                    {post.subreddit}
+                <div className="post-item__sender-row">
+                  <span className="post-item__sender">
+                    r/{post.subreddit} • u/{post.author}
                   </span>
-                  <span className="post-item__dot">·</span>
-                  <span className="post-item__author">
-                    u/{post.author}
-                  </span>
-                  <span className="post-item__dot">·</span>
                   <span className="post-item__time">{post.time}</span>
                 </div>
+                <h3 className="post-item__title">{post.title}</h3>
               </div>
             </article>
           );
