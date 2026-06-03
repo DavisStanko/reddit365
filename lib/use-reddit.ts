@@ -43,6 +43,7 @@ export interface UseRedditReturn extends RedditState {
   loadMorePosts: () => void;
   loadMoreComments: () => void;
   refreshPosts: () => void;
+  refreshComments: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ function buildPostsUrl(
   return url.toString();
 }
 
-function buildCommentsUrl(permalink: string, after: string | null): string {
+function buildCommentsUrl(permalink: string, after: string | null, forceRefresh: boolean = false): string {
   let targetUrl = permalink;
   if (permalink.startsWith("http")) {
     try {
@@ -118,6 +119,9 @@ function buildCommentsUrl(permalink: string, after: string | null): string {
       : "http://localhost:3000";
   const url = new URL(`${baseUrl}/api/reddit`);
   url.searchParams.set("url", targetUrl);
+  if (forceRefresh) {
+    url.searchParams.set("forceRefresh", "true");
+  }
   return url.toString();
 }
 
@@ -660,6 +664,100 @@ export function useReddit(
     void doFetch();
   }, []);
 
+  // ------------------------------------------------------------------
+  // refreshComments — force re-fetch of comments
+  // ------------------------------------------------------------------
+  const refreshComments = useCallback(() => {
+    if (!selectedPostRef.current?.permalink) return;
+
+    setComments([]);
+    setCommentsAfter(null);
+    setHasMoreComments(true);
+    setCommentsError(null);
+    setCommentsRetryInfo(null);
+    commentsAfterRef.current = null;
+    loadingCommentsRef.current = true;
+
+    const controller = new AbortController();
+    setIsLoadingComments(true);
+
+    const doFetch = async () => {
+      try {
+        const url = buildCommentsUrl(selectedPostRef.current!.permalink, null, true);
+        const res = await fetchWithRetry(
+          url,
+          controller.signal,
+          4000,
+          (info) => setCommentsRetryInfo(info),
+        );
+        setCommentsRetryInfo(null);
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No response body");
+          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
+        }
+
+        const text = await res.text();
+        if (controller.signal.aborted) return;
+
+        let newComments: FlatComment[] = [];
+
+        if (text.trim().startsWith("<")) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, "text/xml");
+          const entries = Array.from(doc.querySelectorAll("entry"));
+          newComments = entries.slice(1).map((entry) => {
+            const authorName =
+              entry
+                .querySelector("author > name")
+                ?.textContent?.replace("/u/", "") || "unknown";
+            const content = entry.querySelector("content")?.textContent || "";
+            const updated =
+              entry.querySelector("updated")?.textContent || "";
+            const idText =
+              entry.querySelector("id")?.textContent || String(Math.random());
+
+            const tmp = document.createElement("div");
+            tmp.innerHTML = content;
+            const bodyText = tmp.textContent || tmp.innerText || "";
+
+            return {
+              id: idText,
+              author: authorName,
+              time: updated
+                ? new Date(updated).toLocaleDateString()
+                : "recent",
+              score: "0",
+              body: bodyText,
+              depth: 0,
+            };
+          });
+
+          commentsAfterRef.current = null;
+          setCommentsAfter(null);
+          setHasMoreComments(false);
+          setComments(newComments);
+        } else {
+          setComments([]);
+          setHasMoreComments(false);
+        }
+      } catch (err: unknown) {
+        if ((err as Error).name === "AbortError") return;
+        console.warn("[useReddit] refresh comments failed:", err);
+        setCommentsError(err instanceof Error ? err.message : String(err));
+        setCommentsRetryInfo(null);
+        setHasMoreComments(false);
+      } finally {
+        if (!controller.signal.aborted) {
+          loadingCommentsRef.current = false;
+          setIsLoadingComments(false);
+        }
+      }
+    };
+
+    void doFetch();
+  }, []);
+
   return {
     posts,
     after,
@@ -678,5 +776,6 @@ export function useReddit(
     loadMorePosts,
     loadMoreComments,
     refreshPosts,
+    refreshComments,
   };
 }
