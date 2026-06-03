@@ -34,17 +34,20 @@ export function PostList() {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [activeFeed, currentSort]);
 
-  // Infinite scroll via IntersectionObserver
+  // Infinite scroll via IntersectionObserver.
+  // Uses listRef as root so the sentinel only triggers when the user actually
+  // scrolls to the bottom inside the list container, not on initial render.
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const list = listRef.current;
+    if (!sentinel || !list) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMorePosts && !isLoadingPosts) {
           loadMorePosts();
         }
       },
-      { threshold: 0.1 },
+      { root: list, rootMargin: "200px", threshold: 0 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -137,9 +140,6 @@ export function PostList() {
           );
         })}
 
-        {/* Sentinel for infinite scroll */}
-        <div ref={sentinelRef} style={{ height: 1 }} />
-
         {isLoadingPosts && (
           <div className="post-list__loading" aria-live="polite">
             <div className="post-list__loading-row" />
@@ -148,6 +148,9 @@ export function PostList() {
             <div className="post-list__loading-row post-list__loading-row--short" />
           </div>
         )}
+
+        {/* Sentinel for infinite scroll — must be after loading indicator */}
+        <div ref={sentinelRef} style={{ height: 1 }} />
 
         {!isLoadingPosts && !hasMorePosts && posts.length > 0 && (
           <div className="post-list__end">— End of feed —</div>
