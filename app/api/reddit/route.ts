@@ -1,40 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Server-side in-memory cache
-// Prevents hammering Reddit when the same feed is requested rapidly.
-// TTL: 60 seconds. Max 100 entries (LRU-lite: just drop oldest on overflow).
+// Disk-persisted cache
+// Survives dev server restarts. TTL: 24 hours (posts are stale but usable).
+// Cache file lives at .next/reddit-cache.json — git-ignored, auto-created.
 // ---------------------------------------------------------------------------
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_FILE = path.join(process.cwd(), ".next", "reddit-cache.json");
+
 interface CacheEntry {
   text: string;
   timestamp: number;
 }
 
-const CACHE_TTL_MS = 60_000; // 60 seconds
-const CACHE_MAX = 100;
-const cache = new Map<string, CacheEntry>();
+type CacheStore = Record<string, CacheEntry>;
+
+// Load cache from disk once at module init
+let store: CacheStore = {};
+try {
+  if (fs.existsSync(CACHE_FILE)) {
+    const raw = fs.readFileSync(CACHE_FILE, "utf-8");
+    store = JSON.parse(raw) as CacheStore;
+    console.log(`[Proxy] Loaded disk cache (${Object.keys(store).length} entries)`);
+  }
+} catch {
+  store = {};
+}
 
 function getCached(key: string): string | null {
-  const entry = cache.get(key);
+  const entry = store[key];
   if (!entry) return null;
   if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    cache.delete(key);
+    delete store[key];
     return null;
   }
   return entry.text;
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function setCached(key: string, text: string) {
-  if (cache.size >= CACHE_MAX) {
-    // Drop the oldest entry
-    const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) cache.delete(firstKey);
-  }
-  cache.set(key, { text, timestamp: Date.now() });
+  store[key] = { text, timestamp: Date.now() };
+  // Debounce disk writes — flush at most once per 2 seconds
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+      fs.writeFileSync(CACHE_FILE, JSON.stringify(store), "utf-8");
+    } catch (e) {
+      console.warn("[Proxy] Failed to write cache to disk:", e);
+    }
+  }, 2000);
 }
 
 // ---------------------------------------------------------------------------
@@ -45,15 +68,15 @@ export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
   if (!url) return new NextResponse("Missing url param", { status: 400 });
 
-  // Return cached response if fresh
+  // Serve from cache if present and fresh (up to 24h)
   const cached = getCached(url);
   if (cached) {
-    console.log("[Proxy] Serving from cache:", url.slice(0, 80));
+    console.log("[Proxy] Cache HIT:", url.slice(0, 80));
     return new NextResponse(cached, {
       status: 200,
       headers: {
         "Content-Type": "text/xml",
-        "Cache-Control": "public, max-age=60",
+        "Cache-Control": "public, max-age=86400",
         "Access-Control-Allow-Origin": "*",
         "X-Cache": "HIT",
       },
@@ -64,8 +87,9 @@ export async function GET(request: NextRequest) {
     const res = await fetch(url, {
       cache: "no-store",
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Reddit365/1.0; +https://github.com/reddit365)",
-        "Accept": "application/rss+xml, application/atom+xml, text/xml, */*",
+        "User-Agent":
+          "Mozilla/5.0 (compatible; Reddit365/1.0; +https://github.com/reddit365)",
+        Accept: "application/rss+xml, application/atom+xml, text/xml, */*",
       },
     });
 
@@ -77,13 +101,13 @@ export async function GET(request: NextRequest) {
     }
 
     setCached(url, text);
-    console.log("[Proxy] Fetched and cached:", url.slice(0, 80));
+    console.log("[Proxy] Cache MISS, fetched and saved:", url.slice(0, 80));
 
     return new NextResponse(text, {
       status: 200,
       headers: {
         "Content-Type": "text/xml",
-        "Cache-Control": "public, max-age=60",
+        "Cache-Control": "public, max-age=86400",
         "Access-Control-Allow-Origin": "*",
         "X-Cache": "MISS",
       },
