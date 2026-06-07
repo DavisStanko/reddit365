@@ -59,18 +59,20 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  TopBar (height: 48px, bg: --outlook-blue)          │  ← .top-bar
-├──────┬──────────────┬──────────────┬────────────────┤
-│      │              │              │                │
-│ Icon │  Folder Pane │ Message List │  Reading Pane  │
+├──────┬──────────────────────────────────────────────┤
+│      │  Ribbon (Tabs & Commands)                    │  ← .ribbon
+│ Icon ├──────────────┬──────────────┬────────────────┤
 │ Rail │  Folder Pane │ Message List │  Reading Pane  │
-│ 48px │  fixed:220   │ fixed:330    │                │
-│      │  min:160     │ min:200      │                │
+│ 48px │  fixed:220   │ fixed:330    │  flex: 1       │
+│      │  min:160     │ min:200      │  min: 0        │
 │      │  max:400     │ max:600      │                │
 └──────┴──────────────┴──────────────┴────────────────┘
 ```
 
 - **`.outlook-shell`** — `display: flex; flex-direction: column; height: 100vh; overflow: hidden`
 - **`.outlook-shell__body`** — `display: flex; flex: 1; overflow: hidden`
+- **`.outlook-shell__main-area`** — Container for the Ribbon and Panes, `flex: 1; display: flex; flex-direction: column`
+- **`.outlook-shell__panes`** — `display: flex; flex: 1; overflow: hidden`
 - **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
 - **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
 - **`.outlook-shell__content`** — **Reading Pane** (Post viewing), `flex: 1; min-width: 0`
@@ -93,7 +95,9 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 |---|---|---|---|
 | `components/layout/top-bar.tsx` | N/A | Top ribbon/nav bar | Blue bg, wordmark, search, avatar |
 | `components/layout/icon-rail.tsx` | N/A | Left nav icon strip | Dark bg, 48px wide |
+| `components/layout/ribbon.tsx` | N/A | Ribbon Toolbar | Tabs and action buttons below TopBar |
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders" |
+| `components/layout/resize-handle.tsx` | N/A | Resize handle | Visual separator between panes (resizing disabled) |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
 
@@ -148,9 +152,9 @@ The ONLY viable path forward for a basic read-only frontend is using Reddit's pu
 1. **One feed at a time.** Only the *currently selected* feed (subreddit + sort) is fetched. Never pre-fetch or eagerly load other feeds in the background.
 2. **Initial load.** When the app mounts or the active feed changes (different subreddit, or different sort: Hot / New / Top), fetch the first page of posts immediately.
 3. **Infinite scroll / Load more.** Append additional posts only when the user scrolls to the bottom of the Message List. Use the `loadMorePosts` callback from `useReddit`. The `IntersectionObserver` **must** use the scroll container element (`listRef`) as its `root` — **not** the default viewport. Using the viewport as root causes the sentinel to fire immediately on page load before the user scrolls.
-4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. Auto-selecting the first post on load happens immediately, and any resulting rate limit burst is handled transparently by `fetchWithRetry` which retries on 429 infinitely at a flat 4-second interval before surfacing an error.
+4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. No post is auto-selected on load to avoid fetching posts and comments simultaneously, preventing rate limit bursts. Any rate limits encountered are handled by `fetchWithRetry` which implements an exponential backoff strategy on 429s (max 5 attempts) and respects the `Retry-After` header if present before surfacing an error.
 5. **Server-side cache.** The API proxy (`app/api/reddit/route.ts`) caches each RSS URL to disk at `.next/reddit-cache.json` with a **24-hour TTL**. This cache **survives dev server restarts** — Reddit is only hit once per unique URL per day. Do not reduce the TTL or switch back to an in-memory cache. Do not set `Cache-Control: no-store` on successful responses.
-6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh by re-selecting the feed or changing the sort tab.
+6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh using the refresh button (which bypasses the 24h cache), or by re-selecting the feed / changing the sort tab (which uses the cache).
 
 ### RSS Limits — What Actually Matters
 - **Posts per page:** `limit=100` in the RSS URL (Reddit RSS hard cap). One request for 100 posts is strictly better for rate limiting than 7 requests of 15 posts each. Infinite scroll only makes a second request if the user actually scrolls past 100 posts.

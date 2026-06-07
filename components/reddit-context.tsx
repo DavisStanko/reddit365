@@ -28,12 +28,6 @@ export function RedditProvider({ children }: { children: ReactNode }) {
 
   const { posts, isLoadingPosts } = reddit;
 
-  // Auto-select first post on load if none selected and not loading.
-  // The fetchWithRetry helper will gracefully handle any 429s if comments fetch too fast.
-  useEffect(() => {
-    if (isLoadingPosts || selectedPost || posts.length === 0) return;
-    setSelectedPost(posts[0]);
-  }, [posts, selectedPost, setSelectedPost, isLoadingPosts]);
 
 
   return (

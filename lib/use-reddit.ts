@@ -57,6 +57,7 @@ function buildPostsUrl(
   feed: string,
   sort: SortMode,
   after: string | null,
+  forceRefresh: boolean = false,
 ): string {
   let basePath: string;
   if (feed === "popular") {
@@ -83,6 +84,9 @@ function buildPostsUrl(
       : "http://localhost:3000";
   const url = new URL(`${baseUrl}/api/reddit`);
   url.searchParams.set("url", targetUrl);
+  if (forceRefresh) {
+    url.searchParams.set("forceRefresh", "true");
+  }
   return url.toString();
 }
 
@@ -123,7 +127,7 @@ function buildCommentsUrl(permalink: string, after: string | null): string {
 
 /**
  * Fetch a URL, automatically retrying on HTTP 429 (rate limited).
- * Waits `baseDelayMs * (attempt + 1)` ms between attempts.
+ * Implements exponential backoff and respects the Retry-After header if present.
  *
  * @param onRetry  Called just before each retry with the current retry status.
  *                 Use this to update UI (e.g. "Attempt 1/3, retrying in 5s").
@@ -131,26 +135,47 @@ function buildCommentsUrl(permalink: string, after: string | null): string {
 async function fetchWithRetry(
   url: string,
   signal: AbortSignal,
-  delayMs = 4000,
+  baseDelayMs = 4000,
   onRetry?: (info: RetryInfo) => void,
 ): Promise<Response> {
   let attempt = 0;
+  const MAX_ATTEMPTS = 5;
+
   while (true) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const res = await fetch(url, { signal });
     if (res.status !== 429) return res;           // success or non-429 error
     
     attempt++;
-    const waitMs = delayMs;
+    if (attempt > MAX_ATTEMPTS) {
+      console.warn(`[useReddit] Max retries (${MAX_ATTEMPTS}) reached for 429. Giving up.`);
+      return res;
+    }
+
+    let waitMs = baseDelayMs * Math.pow(2, attempt - 1);
+    
+    const retryAfterHeader = res.headers.get("Retry-After");
+    if (retryAfterHeader) {
+      const retryAfterSec = parseInt(retryAfterHeader, 10);
+      if (!isNaN(retryAfterSec)) {
+        waitMs = retryAfterSec * 1000;
+      }
+    }
+
+    // Cap backoff at 1 minute if no explicit Retry-After header was provided
+    if (!retryAfterHeader && waitMs > 60000) {
+      waitMs = 60000;
+    }
+
     // Start countdown one second less than total wait so it shows 3... 2... 1... 0
-    let remainingSeconds = Math.round(waitMs / 1000) - 1;
+    let remainingSeconds = Math.max(0, Math.round(waitMs / 1000) - 1);
     const info: RetryInfo = {
       attempt,
       retryInSeconds: remainingSeconds,
     };
     
     console.warn(
-      `[useReddit] 429 — retrying in ${remainingSeconds + 1}s (attempt ${info.attempt})`,
+      `[useReddit] 429 — retrying in ${remainingSeconds + 1}s (attempt ${info.attempt}/${MAX_ATTEMPTS})`,
     );
     onRetry?.(info);
 
@@ -359,8 +384,7 @@ export function useReddit(
         const res = await fetchWithRetry(
           url,
           controller.signal,
-          5,
-          10000,
+          4000,
           (info) => setPostsRetryInfo(info),
         );
         setPostsRetryInfo(null);
@@ -593,7 +617,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildPostsUrl(feedRef.current, sortRef.current, null);
+        const url = buildPostsUrl(feedRef.current, sortRef.current, null, true);
         const res = await fetchWithRetry(
           url,
           controller.signal,
