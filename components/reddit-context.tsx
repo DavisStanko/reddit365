@@ -29,14 +29,10 @@ export function RedditProvider({ children }: { children: ReactNode }) {
   const { posts, isLoadingPosts } = reddit;
 
   // Auto-select first post on load if none selected and not loading.
-  // Delayed 5s to avoid bursting Reddit's rate limit with posts + comments
-  // requests firing simultaneously on page load.
+  // The fetchWithRetry helper will gracefully handle any 429s if comments fetch too fast.
   useEffect(() => {
     if (isLoadingPosts || selectedPost || posts.length === 0) return;
-    const timer = setTimeout(() => {
-      setSelectedPost(posts[0]);
-    }, 5000);
-    return () => clearTimeout(timer);
+    setSelectedPost(posts[0]);
   }, [posts, selectedPost, setSelectedPost, isLoadingPosts]);
 
 

@@ -55,6 +55,7 @@ function CommentThread() {
     isLoadingComments,
     hasMoreComments,
     commentsError,
+    commentsRetryInfo,
     loadMoreComments,
   } = useRedditContext();
 
@@ -107,10 +108,29 @@ function CommentThread() {
         </div>
       )}
       {isLoadingComments && comments.length === 0 && (
-        <div
-          style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
-        >
-          Loading replies...
+        <div style={{ paddingBottom: "12px" }}>
+          {!commentsRetryInfo ? (
+            <div style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}>
+              Loading replies...
+            </div>
+          ) : (
+            <div 
+              style={{ 
+                padding: "12px", 
+                backgroundColor: "#FFF4CE", 
+                borderLeft: "4px solid #FFB900",
+                fontSize: "13px",
+                lineHeight: "1.5"
+              }}
+            >
+              <div style={{ fontWeight: "600", marginBottom: "4px" }}>Rate Limited (429)</div>
+              <div style={{ color: "var(--outlook-text-secondary)" }}>
+                Attempt {commentsRetryInfo.attempt}
+                <br />
+                Retrying in <strong style={{ color: "var(--outlook-text-primary)" }}>{commentsRetryInfo.retryInSeconds}s</strong>...
+              </div>
+            </div>
+          )}
         </div>
       )}
       {!isLoadingComments && comments.length === 0 && !commentsError && (

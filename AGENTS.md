@@ -8,6 +8,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Reddit365 — Agent Context
 
+## Agent Prime Directive
+
+**CRITICAL:** This document (`AGENTS.md`) is the single source of truth for the project. If you make any design, structural, or behavioral changes to the application, you **MUST** update this document to reflect those changes before completing your task. Do not let this document fall out of sync with the codebase.
+
 ## What This Project Is
 
 **Reddit365 is a pixel-faithful UI clone of Microsoft Outlook (New Outlook / Monarch) that displays Reddit content instead of emails.**
@@ -144,7 +148,7 @@ The ONLY viable path forward for a basic read-only frontend is using Reddit's pu
 1. **One feed at a time.** Only the *currently selected* feed (subreddit + sort) is fetched. Never pre-fetch or eagerly load other feeds in the background.
 2. **Initial load.** When the app mounts or the active feed changes (different subreddit, or different sort: Hot / New / Top), fetch the first page of posts immediately.
 3. **Infinite scroll / Load more.** Append additional posts only when the user scrolls to the bottom of the Message List. Use the `loadMorePosts` callback from `useReddit`. The `IntersectionObserver` **must** use the scroll container element (`listRef`) as its `root` — **not** the default viewport. Using the viewport as root causes the sentinel to fire immediately on page load before the user scrolls.
-4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. Auto-selecting the first post on load is delayed 5 seconds to avoid a burst (posts RSS + comments RSS firing simultaneously → 429). The comments fetch uses `fetchWithRetry` which automatically retries on 429 with exponential backoff (5s, 10s, 15s) before surfacing an error.
+4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. Auto-selecting the first post on load happens immediately, and any resulting rate limit burst is handled transparently by `fetchWithRetry` which retries on 429 infinitely at a flat 4-second interval before surfacing an error.
 5. **Server-side cache.** The API proxy (`app/api/reddit/route.ts`) caches each RSS URL to disk at `.next/reddit-cache.json` with a **24-hour TTL**. This cache **survives dev server restarts** — Reddit is only hit once per unique URL per day. Do not reduce the TTL or switch back to an in-memory cache. Do not set `Cache-Control: no-store` on successful responses.
 6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh by re-selecting the feed or changing the sort tab.
 
