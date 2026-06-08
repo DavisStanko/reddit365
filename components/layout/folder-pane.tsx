@@ -8,6 +8,7 @@ import {
   TrendingUp,
   MoreVertical,
   Trash2,
+  Plus,
 } from "lucide-react";
 import { useAppContext, SubredditItem } from "@/components/app-context";
 import {
@@ -28,8 +29,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const FAVORITES: SubredditItem[] = [
-  { id: "all", label: "r/all", icon: Globe },
-  { id: "popular", label: "r/popular", icon: TrendingUp },
+  { id: "all", label: "all", icon: Globe },
+  { id: "popular", label: "popular", icon: TrendingUp },
 ];
 
 function SortableFolderItem({
@@ -69,7 +70,7 @@ function SortableFolderItem({
         {...listeners}
       >
         <Icon size={18} strokeWidth={1.5} className="folder-item__icon" />
-        <span className="folder-item__label">{item.label}</span>
+        <span className="folder-item__label">{item.label.startsWith("r/") ? item.label.slice(2) : item.label}</span>
         {onRemove && (
           <div
             className="folder-item__more"
@@ -116,11 +117,8 @@ function FolderGroup({
   activeId,
   onSelect,
   onRemove,
-  defaultExpanded = true,
   sortable = false,
 }: FolderGroupProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
   const listContent = items.map((item) => (
     <SortableFolderItem
       key={item.id}
@@ -133,20 +131,11 @@ function FolderGroup({
 
   return (
     <div className="folder-group">
-      <button
-        className="folder-group__header"
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-      >
-        {expanded ? (
-          <ChevronDown size={12} className="folder-group__chevron" />
-        ) : (
-          <ChevronRight size={12} className="folder-group__chevron" />
-        )}
+      <div className="folder-group__header">
+        <ChevronDown size={12} className="folder-group__chevron" />
         <span className="folder-group__title">{title}</span>
-      </button>
-      {expanded && (
-        <ul className="folder-group__list">
+      </div>
+      <ul className="folder-group__list">
           {sortable ? (
             <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
               {listContent}
@@ -155,13 +144,23 @@ function FolderGroup({
             listContent
           )}
         </ul>
-      )}
     </div>
   );
 }
 
 export function FolderPane() {
-  const { activeFeed, setActiveFeed, subreddits, removeSubreddit, reorderSubreddits } = useAppContext();
+  const { activeFeed, setActiveFeed, subreddits, removeSubreddit, reorderSubreddits, addSubreddit } = useAppContext();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newSubreddit, setNewSubreddit] = useState("");
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newSubreddit.trim()) {
+      addSubreddit(newSubreddit.trim());
+      setNewSubreddit("");
+      setShowAddDialog(false);
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -201,7 +200,49 @@ export function FolderPane() {
             sortable
           />
         </DndContext>
+        <div 
+          className="folder-pane__add-btn" 
+          onClick={() => setShowAddDialog(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setShowAddDialog(true);
+            }
+          }}
+        >
+          <Plus size={18} strokeWidth={1.5} className="folder-pane__add-icon" />
+          <span className="folder-item__label">add feed</span>
+        </div>
       </div>
+
+      {showAddDialog && (
+        <div className="outlook-dialog-overlay" onClick={() => setShowAddDialog(false)}>
+          <div className="outlook-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="outlook-dialog__header">
+              <h3>Add Subreddit</h3>
+              <button type="button" className="outlook-dialog__close" onClick={() => setShowAddDialog(false)}>×</button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="outlook-dialog__body">
+              <label htmlFor="subreddit-input" className="outlook-dialog__label">Subreddit Name (without r/)</label>
+              <input
+                id="subreddit-input"
+                type="text"
+                autoFocus
+                placeholder="e.g. reactjs"
+                value={newSubreddit}
+                onChange={(e) => setNewSubreddit(e.target.value)}
+                className="outlook-dialog__input"
+              />
+              <div className="outlook-dialog__footer">
+                <button type="button" className="outlook-dialog__btn" onClick={() => setShowAddDialog(false)}>Cancel</button>
+                <button type="submit" className="outlook-dialog__btn-primary">Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
