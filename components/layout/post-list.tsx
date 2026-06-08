@@ -8,6 +8,32 @@ import type { SortMode } from "@/lib/use-reddit";
 
 const SORT_OPTIONS: SortMode[] = ["hot", "new", "top"];
 
+const AVATAR_COLORS = [
+  "#d13438", // red
+  "#ca5010", // orange
+  "#fce100", // yellow (might be hard to read white text on, let's use a darker yellow/gold or skip it. Outlook uses specific colors. Let's stick to darker ones)
+  "#0b6a0f", // green
+  "#00b7c3", // cyan
+  "#0078d4", // blue
+  "#5c2d91", // purple
+  "#881798", // magenta
+  "#e3008c", // pink
+  "#69797e", // gray
+];
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash += name.charCodeAt(i);
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function getInitials(name: string): string {
+  if (!name) return "?";
+  return name.charAt(0).toUpperCase();
+}
+
 export function PostList() {
   const {
     activeFeed,
@@ -123,6 +149,13 @@ export function PostList() {
                 }
               }}
             >
+              <div
+                className="post-item__avatar"
+                style={{ backgroundColor: getAvatarColor(post.author) }}
+                aria-hidden="true"
+              >
+                {getInitials(post.author)}
+              </div>
               <div className="post-item__content">
                 <div className="post-item__sender-row">
                   <span className="post-item__sender">
