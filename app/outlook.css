@@ -7,7 +7,7 @@ body {
   font-family:
     "Segoe UI",
     "Segoe UI Web (West European)",
-    system-ui,
+    "Segoe UI",
     -apple-system,
     BlinkMacSystemFont,
     "Roboto",
@@ -16,7 +16,6 @@ body {
   font-size: 14px;
   line-height: 20px;
   color: var(--outlook-text-primary);
-  -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
   height: 100%;
@@ -97,6 +96,7 @@ body {
   min-width: 0;
   overflow: hidden;
   background: #f5f5f5;
+  padding-left: 12px;
 }
 
 /* ========================================================================
@@ -186,14 +186,14 @@ body {
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 8px 16px 7px 18px;
+  padding: 8px 16px 7px 16px;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--outlook-text-secondary);
+  color: var(--outlook-text-primary);
   cursor: pointer;
   font-family: inherit;
 }
@@ -223,17 +223,20 @@ body {
 .folder-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 16px 6px 28px;
+  gap: 12px;
+  width: auto;
+  margin: 0 10px;
+  padding: 8px 12px 8px 24px;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--outlook-text-primary);
   cursor: pointer;
   font-family: inherit;
   transition: background 100ms ease;
   text-align: left;
+  border-radius: 4px;
 }
 
 .folder-item:hover {
@@ -317,6 +320,7 @@ body {
   padding: 8px 12px 7px 16px;
   border-bottom: 1px solid var(--outlook-border);
   flex-shrink: 0;
+  background: #ffffff;
 }
 
 .post-list__tabs {
@@ -331,7 +335,7 @@ body {
   border: none;
   background: transparent;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--outlook-text-secondary);
   cursor: pointer;
   font-family: inherit;
@@ -344,6 +348,7 @@ body {
 
 .post-list__tab--active {
   color: var(--outlook-text-primary);
+  font-weight: 600;
 }
 
 .post-list__tab--active::after {
@@ -423,6 +428,7 @@ body {
 .post-list__items {
   flex: 1;
   overflow-y: auto;
+  background: #ffffff;
 }
 
 .post-list__empty {
@@ -545,9 +551,33 @@ body {
   gap: 3px;
 }
 
+.post-item__sender-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.post-item__sender {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--outlook-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.post-item__time {
+  font-size: 12px;
+  color: var(--outlook-text-secondary);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
 .post-item__title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--outlook-text-primary);
   line-height: 18px;
   display: -webkit-box;
@@ -555,28 +585,6 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin: 0;
-}
-
-.post-item__meta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--outlook-text-secondary);
-}
-
-.post-item__sub {
-  color: var(--outlook-text-secondary);
-  font-weight: 600;
-}
-
-.post-item__dot {
-  color: var(--outlook-text-tertiary);
-}
-
-.post-item__author,
-.post-item__time {
-  color: var(--outlook-text-tertiary);
 }
 
 .post-item__stats {
@@ -588,16 +596,12 @@ body {
 
 .post-item--selected {
   background: var(--outlook-blue-light);
-  border-left: 3px solid var(--outlook-blue);
-  padding-left: 13px;
+  outline: 1px solid var(--outlook-blue);
+  outline-offset: -1px;
 }
 
 .post-item--selected:hover {
   background: var(--outlook-blue-light);
-}
-
-.post-item--selected .post-item__title {
-  color: var(--outlook-blue);
 }
 
 .post-item:focus-visible {

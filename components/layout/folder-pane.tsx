@@ -68,7 +68,7 @@ function SortableFolderItem({
         {...attributes}
         {...listeners}
       >
-        <Icon size={16} className="folder-item__icon" />
+        <Icon size={18} strokeWidth={1.5} className="folder-item__icon" />
         <span className="folder-item__label">{item.label}</span>
         {onRemove && (
           <div

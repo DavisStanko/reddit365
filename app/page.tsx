@@ -5,14 +5,13 @@ import Image from "next/image";
 import {
   FolderPane,
   ContentPane,
-  ResizeHandle,
   PostList,
 } from "@/components/layout";
 import { AppProvider, useAppContext } from "@/components/app-context";
 import { RedditProvider } from "@/components/reddit-context";
 
-const DEFAULT_FOLDER_WIDTH = 220;
-const DEFAULT_LIST_WIDTH = 330;
+const DEFAULT_FOLDER_WIDTH = 212;
+const DEFAULT_LIST_WIDTH = 350;
 
 function HomeContent() {
   const { addSubreddit } = useAppContext();
@@ -69,13 +68,11 @@ function HomeContent() {
             >
               <FolderPane />
             </div>
-            <ResizeHandle />
 
             {/* Message list pane — resizable */}
             <div className="outlook-shell__list" style={{ width: DEFAULT_LIST_WIDTH }}>
               <PostList />
             </div>
-            <ResizeHandle />
 
             {/* Reading pane — takes remaining space */}
             <div className="outlook-shell__content">
