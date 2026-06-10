@@ -76,7 +76,6 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 - **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
 - **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
 - **`.outlook-shell__content`** — **Reading Pane** (Post viewing), `flex: 1; min-width: 0`
-- Between each pane: a `<ResizeHandle>` component (Note: Resizing has been disabled per user request)
 
 ### Linkification & Hover Rules
 1. **Message List (Column 2)**:
@@ -91,13 +90,12 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 
 ## Component Map
 
-| File | Column Name | Outlook Equivalent | Notes |
+| File / Element | Column Name | Outlook Equivalent | Notes |
 |---|---|---|---|
-| `components/layout/top-bar.tsx` | N/A | Top ribbon/nav bar | Blue bg, wordmark, search, avatar |
-| `components/layout/icon-rail.tsx` | N/A | Left nav icon strip | Dark bg, 48px wide |
-| `components/layout/ribbon.tsx` | N/A | Ribbon Toolbar | Tabs and action buttons below TopBar |
-| `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders" |
-| `components/layout/resize-handle.tsx` | N/A | Resize handle | Visual separator between panes (resizing disabled) |
+| `/public/images/top-header.png` | N/A | Top ribbon/nav bar | Static image replacing top bar |
+| `/public/images/sidebar.png` | N/A | Left nav icon strip | Static image replacing icon rail |
+| `/public/images/second-header.png` | N/A | Ribbon Toolbar | Static image replacing ribbon |
+| `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
 
@@ -198,5 +196,5 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
 - [x] **Feed Fetching & Pagination**: Implemented fetching via Reddit's public RSS feeds to bypass `.json` API blocks. Fetches one page on feed selection, loads more on infinite scroll, fetches comments only when a post is selected. Deep nested comment trees are not available via RSS (flat list only).
-- [ ] **Subreddit List Persistence & Editing**: Subreddit list should persist via `localStorage` and be editable (new message icon to add sub, 3 dots to show delete, drag and drop). (Partially Implemented - local storage persistence exists, drag and drop / full editing UI needs work)
-- [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current without triggering rate limits. (Partially Implemented)
+- [x] **Subreddit List Persistence & Editing**: Subreddit list persists via `localStorage` and is editable (add feed button, 3 dots to show delete, drag and drop). (Fully Implemented)
+- [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current. (Explicitly disabled to prevent rate limiting, per rule 6)
