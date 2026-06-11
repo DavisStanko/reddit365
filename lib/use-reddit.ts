@@ -149,7 +149,7 @@ async function fetchWithRetry(
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const res = await fetch(url, { signal });
     if (res.status !== 429) return res;           // success or non-429 error
-    
+
     attempt++;
     if (attempt > MAX_ATTEMPTS) {
       console.warn(`[useReddit] Max retries (${MAX_ATTEMPTS}) reached for 429. Giving up.`);
@@ -157,7 +157,7 @@ async function fetchWithRetry(
     }
 
     let waitMs = baseDelayMs * Math.pow(2, attempt - 1);
-    
+
     const retryAfterHeader = res.headers.get("Retry-After");
     if (retryAfterHeader) {
       const retryAfterSec = parseInt(retryAfterHeader, 10);
@@ -177,7 +177,7 @@ async function fetchWithRetry(
       attempt,
       retryInSeconds: remainingSeconds,
     };
-    
+
     console.warn(
       `[useReddit] 429 — retrying in ${remainingSeconds + 1}s (attempt ${info.attempt}/${MAX_ATTEMPTS})`,
     );
@@ -185,7 +185,7 @@ async function fetchWithRetry(
 
     await new Promise<void>((resolve, reject) => {
       let interval: ReturnType<typeof setInterval>;
-      
+
       const tick = () => {
         remainingSeconds--;
         if (remainingSeconds < 0) {
@@ -195,7 +195,7 @@ async function fetchWithRetry(
           onRetry?.({ ...info, retryInSeconds: remainingSeconds });
         }
       };
-      
+
       interval = setInterval(tick, 1000);
 
       signal.addEventListener(
@@ -270,6 +270,17 @@ function parsePostFeed(
     if (linkHref && commentsHref && linkHref !== commentsHref)
       externalUrl = linkHref;
 
+    if (externalUrl) {
+      const isRedditImage = externalUrl.includes("i.redd.it");
+      const isOtherImage = externalUrl.endsWith(".jpg") || externalUrl.endsWith(".jpeg") || externalUrl.endsWith(".png") || externalUrl.endsWith(".gif");
+      
+      if (isRedditImage || isOtherImage) {
+        console.log("[useReddit] Converting external link to image:", externalUrl);
+        imageUrl = externalUrl;
+        externalUrl = undefined;
+      }
+    }
+
     let bodyText = tmp.textContent || tmp.innerText || "";
     bodyText = bodyText
       .replace(
@@ -281,7 +292,7 @@ function parsePostFeed(
 
     const numericId = idText
       ? parseInt(idText.replace(/^t3_/, ""), 36) ||
-        Math.floor(Math.random() * 1e8)
+      Math.floor(Math.random() * 1e8)
       : Math.floor(Math.random() * 1e8);
 
     return {
@@ -402,8 +413,8 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
-          if ((res.status === 404 && text.includes("page not found")) || 
-              (res.status === 403 && text.includes(": private"))) {
+          if ((res.status === 404 && text.includes("page not found")) ||
+            (res.status === 403 && text.includes(": private"))) {
             const name = feed.replace(/^r\//, "");
             throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
           }
@@ -573,8 +584,8 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
-          if ((res.status === 404 && text.includes("page not found")) || 
-              (res.status === 403 && text.includes(": private"))) {
+          if ((res.status === 404 && text.includes("page not found")) ||
+            (res.status === 403 && text.includes(": private"))) {
             const name = feedRef.current.replace(/^r\//, "");
             throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
           }
@@ -649,8 +660,8 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
-          if ((res.status === 404 && text.includes("page not found")) || 
-              (res.status === 403 && text.includes(": private"))) {
+          if ((res.status === 404 && text.includes("page not found")) ||
+            (res.status === 403 && text.includes(": private"))) {
             const name = feedRef.current.replace(/^r\//, "");
             throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
           }
