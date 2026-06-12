@@ -237,11 +237,12 @@ export function ContentPane() {
 
   return (
     <section
-      className="content-pane content-pane--reading"
+      className="content-pane content-pane--reading reading-view"
       aria-label="Content"
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      style={{ display: "flex", flexDirection: "column", height: "100%", backgroundColor: "var(--outlook-folder-bg)", overflowY: "auto" }}
+      ref={readingViewRef}
     >
-      <div className="reading-view__subject-bar" style={{ height: "48px", minHeight: "48px", display: "flex", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--outlook-border)", flexShrink: 0, backgroundColor: "#ffffff" }}>
+      <div className="reading-view__subject-card" style={{ backgroundColor: "#ffffff", borderRadius: "4px", padding: "16px 24px", margin: "0 12px", flexShrink: 0, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
         <h1 className="reading-view__title" style={{ fontSize: "18px", fontWeight: "600", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {post.permalink ? (
             <a href={post.permalink} target="_blank" rel="noopener noreferrer">
@@ -252,8 +253,10 @@ export function ContentPane() {
           )}
         </h1>
       </div>
-      <div style={{ height: "10px", flexShrink: 0 }} />
-      <div className="reading-view" ref={readingViewRef} style={{ flex: 1, overflowY: "auto", backgroundColor: "#ffffff" }}>
+      
+      <div style={{ height: "12px", flexShrink: 0 }} />
+      
+      <div className="reading-view__body-card" style={{ backgroundColor: "#ffffff", borderRadius: "4px", margin: "0 12px", flexShrink: 0, boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
         <div className="reading-view__header" style={{ padding: "16px 24px 16px", borderBottom: "1px solid var(--outlook-border)" }}>
           <div className="reading-view__email-meta" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "14px" }}>
             <div style={{ display: "flex", alignItems: "center" }}>
@@ -295,8 +298,7 @@ export function ContentPane() {
             display: "flex",
             flexDirection: "column",
             gap: "20px",
-            padding: hasContent ? "20px 0" : "0", 
-            borderBottom: hasContent ? "1px solid var(--outlook-border)" : "none" 
+            padding: hasContent ? "20px 0" : "0"
           }}
         >
           {hasMedia && (
@@ -354,11 +356,16 @@ export function ContentPane() {
             </div>
           )}
         </div>
-
-        {post.permalink && (
-          <CommentThread key={post.id} />
-        )}
       </div>
+
+      {post.permalink && (
+        <>
+          <div style={{ height: "12px", flexShrink: 0 }} />
+          <div className="reading-view__replies-card" style={{ backgroundColor: "#ffffff", borderRadius: "4px", margin: "0 12px 12px 12px", boxShadow: "0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)" }}>
+             <CommentThread key={post.id} />
+          </div>
+        </>
+      )}
     </section>
   );
 }

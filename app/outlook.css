@@ -89,6 +89,8 @@ body {
   min-width: 200px;
   border-right: 1px solid var(--outlook-border);
   background: #ffffff;
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108);
 }
 
 .outlook-shell__content {
@@ -96,7 +98,6 @@ body {
   min-width: 0;
   overflow: hidden;
   background: #f5f5f5;
-  padding-left: 12px;
 }
 
 /* ========================================================================
@@ -317,7 +318,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px 7px 16px;
+  height: 48px;
+  padding: 0 12px 0 16px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--outlook-border);
   flex-shrink: 0;
   background: #ffffff;
@@ -327,11 +330,15 @@ body {
   display: flex;
   align-items: center;
   gap: 20px;
+  height: 100%;
 }
 
 .post-list__tab {
   position: relative;
-  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0;
   border: none;
   background: transparent;
   font-size: 14px;
@@ -356,9 +363,9 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -8px;
-  height: 2px;
-  border-radius: 999px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
   background: var(--outlook-blue);
 }
 
@@ -467,6 +474,20 @@ body {
   border-bottom: 1px solid #e8e8e8;
   cursor: pointer;
   transition: background 100ms ease;
+}
+
+.post-item__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .post-item:hover {
@@ -845,11 +866,11 @@ body {
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: var(--outlook-content-bg);
+  background: transparent;
 }
 
 .content-pane--blank {
-  background: var(--outlook-content-bg);
+  background: transparent;
 }
 
 .content-pane__empty {
