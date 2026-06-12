@@ -270,6 +270,7 @@ function parsePostFeed(
     if (linkHref && commentsHref && linkHref !== commentsHref)
       externalUrl = linkHref;
 
+    let isGallery = false;
     if (externalUrl) {
       const isRedditImage = externalUrl.includes("i.redd.it");
       const isOtherImage = externalUrl.endsWith(".jpg") || externalUrl.endsWith(".jpeg") || externalUrl.endsWith(".png") || externalUrl.endsWith(".gif");
@@ -278,6 +279,11 @@ function parsePostFeed(
         console.log("[useReddit] Converting external link to image:", externalUrl);
         imageUrl = externalUrl;
         externalUrl = undefined;
+      } else if (externalUrl.includes("/gallery/")) {
+        isGallery = true;
+        if (imageUrl && imageUrl.includes("preview.redd.it")) {
+          imageUrl = imageUrl.split("?")[0].replace("preview.redd.it", "i.redd.it");
+        }
       }
     }
 
@@ -309,6 +315,7 @@ function parsePostFeed(
       externalUrl: externalUrl
         ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com")
         : undefined,
+      isGallery,
     };
   });
 

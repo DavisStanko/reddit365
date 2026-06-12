@@ -232,7 +232,7 @@ export function ContentPane() {
 
   const hasBody = !!(post.body && post.body.trim().length > 0);
   const hasMedia = !!mediaUrl;
-  const hasExternalLink = !!post.externalUrl;
+  const hasExternalLink = !!post.externalUrl && !post.isGallery;
   const hasContent = hasBody || hasMedia || hasExternalLink;
 
   return (
@@ -327,6 +327,22 @@ export function ContentPane() {
                     }
                   }}
                 />
+              )}
+              {post.isGallery && (
+                <div style={{ marginTop: "16px", fontSize: "13px", color: "var(--outlook-text-tertiary)", textAlign: "center", lineHeight: "1.4" }}>
+                  This is a gallery post with multiple images, but Reddit&apos;s public feed only provides the first one.
+                  <br />
+                  <a
+                    href={post.externalUrl || post.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "var(--outlook-blue)", textDecoration: "none" }}
+                    onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                    onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+                  >
+                    View full gallery on Reddit
+                  </a> to see more.
+                </div>
               )}
             </div>
           )}
