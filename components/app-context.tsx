@@ -15,7 +15,7 @@ import { Hash } from "lucide-react";
 export interface SubredditItem {
   id: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 }
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
