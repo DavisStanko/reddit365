@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import { RefreshCw } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { FlatComment } from "@/lib/types";
@@ -57,6 +58,7 @@ function CommentThread() {
     commentsError,
     commentsRetryInfo,
     loadMoreComments,
+    refreshComments,
   } = useRedditContext();
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -93,9 +95,28 @@ function CommentThread() {
       className="reading-view__comments"
       style={{ padding: "24px 24px 40px" }}
     >
-      <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
-        Replies
-      </h3>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+        <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
+          Replies
+        </h3>
+        <button
+          className="post-list__header-btn"
+          type="button"
+          aria-label="Refresh Replies"
+          onClick={refreshComments}
+          title="Refresh Replies"
+          style={{ width: "24px", height: "24px" }}
+        >
+          <RefreshCw
+            size={14}
+            className={
+              isLoadingComments && comments.length === 0
+                ? "post-list__icon-spin"
+                : ""
+            }
+          />
+        </button>
+      </div>
       <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px", marginBottom: "16px" }}>
         Replies are displayed as a flat list due to API constraints.
       </div>
@@ -218,18 +239,22 @@ export function ContentPane() {
     <section
       className="content-pane content-pane--reading"
       aria-label="Content"
+      style={{ display: "flex", flexDirection: "column", height: "100%" }}
     >
-      <div className="reading-view" ref={readingViewRef}>
-        <div className="reading-view__header" style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--outlook-border)" }}>
-          <h1 className="reading-view__title" style={{ fontSize: "20px", fontWeight: "600", marginBottom: "20px" }}>
-            {post.permalink ? (
-              <a href={post.permalink} target="_blank" rel="noopener noreferrer">
-                {post.title}
-              </a>
-            ) : (
-              post.title
-            )}
-          </h1>
+      <div className="reading-view__subject-bar" style={{ height: "48px", minHeight: "48px", display: "flex", alignItems: "center", padding: "0 24px", borderBottom: "1px solid var(--outlook-border)", flexShrink: 0, backgroundColor: "#ffffff" }}>
+        <h1 className="reading-view__title" style={{ fontSize: "18px", fontWeight: "600", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {post.permalink ? (
+            <a href={post.permalink} target="_blank" rel="noopener noreferrer">
+              {post.title}
+            </a>
+          ) : (
+            post.title
+          )}
+        </h1>
+      </div>
+      <div style={{ height: "10px", flexShrink: 0 }} />
+      <div className="reading-view" ref={readingViewRef} style={{ flex: 1, overflowY: "auto", backgroundColor: "#ffffff" }}>
+        <div className="reading-view__header" style={{ padding: "16px 24px 16px", borderBottom: "1px solid var(--outlook-border)" }}>
           <div className="reading-view__email-meta" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "14px" }}>
             <div style={{ display: "flex", alignItems: "center" }}>
               <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: "var(--outlook-blue)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", marginRight: "12px", fontWeight: "600", fontSize: "16px", flexShrink: 0 }}>

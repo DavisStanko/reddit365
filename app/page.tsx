@@ -30,20 +30,29 @@ function HomeContent() {
   return (
     <div className="outlook-shell">
       {/* Top Header Image */}
-      <div style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0 }}>
-        <Image src="/images/top-header.png" alt="Top Header" fill style={{ objectFit: "cover", objectPosition: "left top" }} priority unoptimized />
+      <div 
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0, userSelect: "none" }}
+      >
+        <Image src="/images/top-header.png" alt="Top Header" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
       </div>
 
       <div className="outlook-shell__body">
         {/* Sidebar Image */}
-        <div style={{ position: "relative", width: "50px", height: "100%", flexShrink: 0, backgroundColor: "#1f1f1f" }}>
-          <Image src="/images/sidebar.png" alt="Sidebar" fill style={{ objectFit: "cover", objectPosition: "top center" }} priority unoptimized />
+        <div 
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ position: "relative", width: "50px", height: "100%", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none" }}
+        >
+          <Image src="/images/sidebar.png" alt="Sidebar" fill style={{ objectFit: "cover", objectPosition: "top center", pointerEvents: "none" }} draggable={false} priority unoptimized />
         </div>
 
         <div className="outlook-shell__main-area">
           {/* Second Header Image with invisible button */}
-          <div style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5" }}>
-            <Image src="/images/second-header.png" alt="Ribbon" fill style={{ objectFit: "cover", objectPosition: "left top" }} priority unoptimized />
+          <div 
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5", userSelect: "none" }}
+          >
+            <Image src="/images/second-header.png" alt="Ribbon" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
             <button
               onClick={() => setShowAddDialog(true)}
               style={{

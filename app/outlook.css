@@ -884,6 +884,7 @@ body {
 .content-pane--reading {
   align-items: stretch;
   justify-content: stretch;
+  background: transparent;
 }
 
 /* ========================================================================
