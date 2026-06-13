@@ -229,6 +229,13 @@ function parsePostFeed(
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, "text/xml");
+
+  const feedTitle = doc.querySelector("title")?.textContent;
+  if (feedTitle && feedTitle.includes("page not found")) {
+    const name = fallbackFeed.replace(/^r\//, "");
+    throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
+  }
+
   const entries = Array.from(doc.querySelectorAll("entry"));
 
   const posts: Post[] = entries.map((entry) => {
@@ -395,6 +402,11 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
+          if ((res.status === 404 && text.includes("page not found")) || 
+              (res.status === 403 && text.includes(": private"))) {
+            const name = feed.replace(/^r\//, "");
+            throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
+          }
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
@@ -561,6 +573,11 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
+          if ((res.status === 404 && text.includes("page not found")) || 
+              (res.status === 403 && text.includes(": private"))) {
+            const name = feedRef.current.replace(/^r\//, "");
+            throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
+          }
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 
@@ -632,6 +649,11 @@ export function useReddit(
 
         if (!res.ok) {
           const text = await res.text().catch(() => "No response body");
+          if ((res.status === 404 && text.includes("page not found")) || 
+              (res.status === 403 && text.includes(": private"))) {
+            const name = feedRef.current.replace(/^r\//, "");
+            throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
+          }
           throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
         }
 

@@ -19,14 +19,14 @@ export interface SubredditItem {
 }
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
-  { id: "askreddit", label: "r/AskReddit", icon: Hash },
-  { id: "worldnews", label: "r/worldnews", icon: Hash },
-  { id: "programming", label: "r/programming", icon: Hash },
-  { id: "technology", label: "r/technology", icon: Hash },
-  { id: "science", label: "r/science", icon: Hash },
-  { id: "gaming", label: "r/gaming", icon: Hash },
-  { id: "movies", label: "r/movies", icon: Hash },
-  { id: "music", label: "r/music", icon: Hash },
+  { id: "askreddit", label: "AskReddit", icon: Hash },
+  { id: "worldnews", label: "worldnews", icon: Hash },
+  { id: "programming", label: "programming", icon: Hash },
+  { id: "technology", label: "technology", icon: Hash },
+  { id: "science", label: "science", icon: Hash },
+  { id: "gaming", label: "gaming", icon: Hash },
+  { id: "movies", label: "movies", icon: Hash },
+  { id: "music", label: "music", icon: Hash },
 ];
 
 
@@ -131,8 +131,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const id = name.toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (!id || subreddits.some((s) => s.id === id)) return;
       setSubreddits((prev) => [
-        { id, label: `r/${name}`, icon: Hash },
         ...prev,
+        { id, label: name, icon: Hash },
       ]);
     },
     [subreddits, setSubreddits],
