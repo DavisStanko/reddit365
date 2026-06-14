@@ -89,6 +89,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Failed to load subscriptions", e);
     }
+
+    try {
+      const storedFeed = localStorage.getItem("reddit365_activeFeed");
+      if (storedFeed) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveFeedRaw(storedFeed);
+      }
+    } catch (e) {
+      console.error("Failed to load active feed", e);
+    }
   }, []);
 
   const setSubreddits = useCallback(
@@ -119,6 +129,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setActiveFeed = useCallback((feed: string) => {
     setActiveFeedRaw(feed);
     setSelectedPost(null);
+    try {
+      localStorage.setItem("reddit365_activeFeed", feed);
+    } catch (e) {
+      console.error("Failed to save active feed", e);
+    }
   }, []);
 
   const setCurrentSort = useCallback((mode: SortMode) => {

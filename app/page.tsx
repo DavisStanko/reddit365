@@ -16,7 +16,7 @@ function HomeContent() {
   return (
     <div className="outlook-shell">
       {/* Top Header Image */}
-      <div 
+      <div
         onContextMenu={(e) => e.preventDefault()}
         style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0, userSelect: "none" }}
       >
@@ -25,7 +25,7 @@ function HomeContent() {
 
       <div className="outlook-shell__body">
         {/* Sidebar Image */}
-        <div 
+        <div
           onContextMenu={(e) => e.preventDefault()}
           style={{ position: "relative", width: "50px", height: "100%", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none" }}
         >
@@ -34,7 +34,7 @@ function HomeContent() {
 
         <div className="outlook-shell__main-area">
           {/* Second Header Image with invisible button */}
-          <div 
+          <div
             onContextMenu={(e) => e.preventDefault()}
             style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5", userSelect: "none" }}
           >

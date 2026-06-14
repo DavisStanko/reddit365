@@ -191,7 +191,7 @@ A feature is complete when:
 
 To ensure all agents are aligned on the core feature set, here is the master list of features and their current implementation status. When adding or modifying features, please update this list:
 
-- [x] **Post Formatting**: Posts are formatted like emails. Title is subject line, body and media in the body. **Note:** Upvote counts and comment counts have been completely removed from the UI as they cannot be fetched via the unauthenticated `.rss` feed hack. Comments are fetched via RSS but displayed as a flat list. A link to the original post on Reddit is provided instead.
+- [x] **Post Formatting**: Posts are formatted like emails. Title is subject line, body and media in the body. External image links (e.g. `i.redd.it`) are automatically expanded into inline images. **Note:** Upvote counts and comment counts have been completely removed from the UI as they cannot be fetched via the unauthenticated `.rss` feed hack. Comments are fetched via RSS but displayed as a flat list. A link to the original post on Reddit is provided instead.
 - [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)

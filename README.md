@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reddit365
 
-## Getting Started
+**[reddit365.davisstanko.com](https://reddit365.davisstanko.com)**
 
-First, run the development server:
+A UI clone of Microsoft New Outlook that displays Reddit content in place of emails. The tab title reads "Outlook" and uses the real Outlook favicon, so it blends into a browser tab bar like any other work app.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+![Reddit365 Screenshot](./public/images/screenshot.png)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Subreddits as folders** — your subscribed subreddits appear as email folders in the left sidebar. Add, remove, and drag to reorder them.
+- **Post feed** — posts are listed as emails in the middle column. Sort by Hot, New, or Top.
+- **Reading pane** — selecting a post opens its content and comments on the right, formatted as an email thread. External image links (like `i.redd.it`) are automatically expanded into inline images.
+- **Disguise details** — tab title, favicon, and overall Fluent Design aesthetic match New Outlook closely enough to pass a casual glance.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+No login required. Open the app and start browsing.
 
-To learn more about Next.js, take a look at the following resources:
+- **Add a subreddit:** click "New Folder" or the "+" button in the sidebar and enter a subreddit name.
+- **Remove or reorder:** hover a folder and click the three-dot menu to remove it, or drag it to a new position.
+- **Read a post:** click any item in the feed to load it in the reading pane.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Limitations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Reddit heavily restricts unauthenticated API access, so Reddit365 uses public RSS feeds rather than Reddit's JSON API. A few things aren't possible as a result:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Read-only** — no login, voting, or replying.
+- **Flat comments** — the RSS feed doesn't include threading, so replies to comments look identical to top-level comments. The feed is also capped at 50 comments, sorted by Best only.
+- **Rate limiting** — Reddit throttles RSS requests. The app handles this with exponential backoff, but switching subreddits quickly may cause a delay.
