@@ -1398,17 +1398,40 @@ body {
   display: none;
   background: #fff3cd;
   color: #856404;
-  text-align: center;
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 500;
   border-bottom: 1px solid #ffeeba;
   z-index: 1000;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 @media (max-width: 1200px) {
   .mobile-warning {
-    display: block;
+    display: flex;
   }
+}
+
+.mobile-warning__close {
+  background: transparent;
+  border: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #856404;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 100ms ease;
+}
+
+.mobile-warning__close:hover {
+  background: rgba(133, 100, 4, 0.1);
 }
