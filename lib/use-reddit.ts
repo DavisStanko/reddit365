@@ -708,7 +708,8 @@ export function useReddit(
   // refreshComments — force re-fetch of comments
   // ------------------------------------------------------------------
   const refreshComments = useCallback(() => {
-    if (!selectedPostRef.current?.permalink) return;
+    const permalink = selectedPostRef.current?.permalink;
+    if (!permalink) return;
 
     setComments([]);
     setCommentsAfter(null);
@@ -723,7 +724,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildCommentsUrl(selectedPostRef.current!.permalink, null, true);
+        const url = buildCommentsUrl(permalink, null, true);
         const res = await fetchWithRetry(
           url,
           controller.signal,
