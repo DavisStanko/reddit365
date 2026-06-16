@@ -4,7 +4,8 @@
 
 A UI clone of Microsoft New Outlook that displays Reddit content in place of emails. The tab title reads "Outlook" and uses the real Outlook favicon, so it blends into a browser tab bar like any other work app.
 
-![Reddit365 Screenshot](./public/images/screenshot.png)
+![Reddit365 Image Loading Example](./public/images/screenshot-1.png)
+![Reddit365 Text Post Example](./public/images/screenshot-2.png)
 
 ## Features
 

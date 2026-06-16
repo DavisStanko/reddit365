@@ -10,6 +10,7 @@ export interface Post {
   mediaType?: "image" | "video";
   permalink?: string;
   externalUrl?: string;
+  isGallery?: boolean;
 }
 
 export interface FlatComment {
