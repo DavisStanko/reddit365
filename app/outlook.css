@@ -1389,3 +1389,26 @@ body {
 .post-list__load-more-btn:hover {
   background: var(--outlook-blue-hover);
 }
+
+/* ========================================================================
+   MOBILE WARNING BANNER
+   ======================================================================== */
+
+.mobile-warning {
+  display: none;
+  background: #fff3cd;
+  color: #856404;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid #ffeeba;
+  z-index: 1000;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1200px) {
+  .mobile-warning {
+    display: block;
+  }
+}

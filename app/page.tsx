@@ -15,6 +15,11 @@ const DEFAULT_LIST_WIDTH = 350;
 function HomeContent() {
   return (
     <div className="outlook-shell">
+      {/* Mobile Warning Banner */}
+      <div className="mobile-warning">
+        ⚠️ This theme is designed for desktop use and may display incorrectly on smaller windows or mobile devices.
+      </div>
+
       {/* Top Header Image */}
       <div
         onContextMenu={(e) => e.preventDefault()}
