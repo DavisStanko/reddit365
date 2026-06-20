@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
+import { X } from "lucide-react";
 import {
   FolderPane,
   ContentPane,
@@ -13,12 +15,19 @@ const DEFAULT_FOLDER_WIDTH = 212;
 const DEFAULT_LIST_WIDTH = 350;
 
 function HomeContent() {
+  const [showWarning, setShowWarning] = useState(true);
+
   return (
     <div className="outlook-shell">
       {/* Mobile Warning Banner */}
-      <div className="mobile-warning">
-        ⚠️ This theme is designed for desktop use and may display incorrectly on smaller windows or mobile devices.
-      </div>
+      {showWarning && (
+        <div className="mobile-warning">
+          <span>⚠️ This theme is designed for desktop use and may display incorrectly on smaller windows or mobile devices.</span>
+          <button className="mobile-warning__close" onClick={() => setShowWarning(false)}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Top Header Image */}
       <div
