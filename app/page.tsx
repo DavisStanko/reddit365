@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import {
@@ -10,12 +10,29 @@ import {
 } from "@/components/layout";
 import { AppProvider } from "@/components/app-context";
 import { RedditProvider } from "@/components/reddit-context";
+import { HelpModal } from "@/components/help-modal";
 
 const DEFAULT_FOLDER_WIDTH = 212;
 const DEFAULT_LIST_WIDTH = 350;
 
 function HomeContent() {
   const [showWarning, setShowWarning] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Open on first visit
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("reddit365_helpSeen")) {
+        setShowHelp(true);
+        localStorage.setItem("reddit365_helpSeen", "1");
+      }
+    } catch {
+      // localStorage unavailable — just skip
+    }
+  }, []);
+
+  const openHelp = () => setShowHelp(true);
+  const closeHelp = () => setShowHelp(false);
 
   return (
     <div className="outlook-shell">
@@ -29,10 +46,15 @@ function HomeContent() {
         </div>
       )}
 
-      {/* Top Header Image */}
+      {/* Top Header Image — click to open help */}
       <div
         onContextMenu={(e) => e.preventDefault()}
-        style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0, userSelect: "none" }}
+        onClick={openHelp}
+        role="button"
+        tabIndex={0}
+        aria-label="Open help and settings"
+        onKeyDown={(e) => e.key === "Enter" && openHelp()}
+        style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0, userSelect: "none", cursor: "pointer" }}
       >
         <Image src="/images/top-header.png" alt="Top Header" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
       </div>
@@ -47,10 +69,15 @@ function HomeContent() {
         </div>
 
         <div className="outlook-shell__main-area">
-          {/* Second Header Image with invisible button */}
+          {/* Second Header Image — click to open help */}
           <div
             onContextMenu={(e) => e.preventDefault()}
-            style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5", userSelect: "none" }}
+            onClick={openHelp}
+            role="button"
+            tabIndex={0}
+            aria-label="Open help and settings"
+            onKeyDown={(e) => e.key === "Enter" && openHelp()}
+            style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5", userSelect: "none", cursor: "pointer" }}
           >
             <Image src="/images/second-header.png" alt="Ribbon" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
           </div>
@@ -76,6 +103,9 @@ function HomeContent() {
           </div>
         </div>
       </div>
+
+      {/* Help & Settings Modal */}
+      <HelpModal isOpen={showHelp} onClose={closeHelp} />
     </div>
   );
 }

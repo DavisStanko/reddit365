@@ -98,6 +98,7 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
+| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 5 tabs: Using Reddit365, Performance Notes, Why This Frontend Is Limited, Settings, Feedback. Triggered on first visit and by clicking either header image. |
 | `lib/media-embed.tsx` | N/A | N/A | Modular media detection and rendering: `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, `MediaEmbedList` components |
 
 ---
@@ -209,7 +210,7 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Video Post Rendering**: `v.redd.it` video posts are now rendered correctly — shows thumbnail (if available from RSS) and a "Watch video on Reddit" link. No longer falsely claims to provide a thumbnail when none is available.
 - [x] **Post Embeds**: YouTube, Imgur (album + single), and Streamable links are auto-detected and rendered as iframes in the reading pane.
 - [x] **Comment Media (Giphy & more)**: Comment HTML is parsed for embeddable media. Giphy GIFs, direct image URLs, Imgur, and Streamable links in comments are rendered inline via `lib/media-embed.tsx`. All media rendering is modular via `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, and `MediaEmbedList`.
-- [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
+- [x] **Media Toggle**: Two separate media embedding toggles in the Settings tab of the Help modal: one for post media (images/video/embeds in the reading pane) and one for comment media (inline embeds under replies). Both default `true` and persist to `localStorage`. Gated in `content-pane.tsx` via `mediaPostsEnabled` and `mediaCommentsEnabled` from `AppContext`. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
 - [x] **Feed Fetching & Pagination**: Implemented fetching via Reddit's public RSS feeds to bypass `.json` API blocks. Fetches one page on feed selection, loads more on infinite scroll, fetches comments only when a post is selected. Deep nested comment trees are not available via RSS (flat list only).

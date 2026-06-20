@@ -12,6 +12,7 @@ import { linkifyText } from "@/lib/linkify";
 import { MediaEmbedList } from "@/lib/media-embed";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
+  const { mediaCommentsEnabled } = useAppContext();
   return (
     <div
       className={`reading-view__comment depth-0`}
@@ -46,7 +47,7 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
       >
         {linkifyText(comment.body)}
       </div>
-      {comment.mediaUrls && comment.mediaUrls.length > 0 && (
+      {mediaCommentsEnabled && comment.mediaUrls && comment.mediaUrls.length > 0 && (
         <MediaEmbedList
           mediaList={comment.mediaUrls}
           style={{ marginTop: "8px" }}
@@ -246,7 +247,7 @@ function CommentThread() {
 }
 
 export function ContentPane() {
-  const { selectedPost: post } = useAppContext();
+  const { selectedPost: post, mediaPostsEnabled } = useAppContext();
   const readingViewRef = useRef<HTMLDivElement | null>(null);
   const mediaUrl = post?.mediaUrl ?? post?.imageUrl;
   const mediaType = post?.mediaType ?? "image";
@@ -261,9 +262,9 @@ export function ContentPane() {
   }
 
   const hasBody = !!(post.body && post.body.trim().length > 0);
-  const hasMedia = !!mediaUrl || !!post.isGallery;
-  const hasVideoPost = !!post.isVideo;
-  const hasEmbed = !!post.embedUrl;
+  const hasMedia = mediaPostsEnabled && (!!mediaUrl || !!post.isGallery);
+  const hasVideoPost = mediaPostsEnabled && !!post.isVideo;
+  const hasEmbed = mediaPostsEnabled && !!post.embedUrl;
   const hasExternalLink = !!post.externalUrl && !post.isGallery && !hasEmbed && !post.isVideo;
   const hasContent = hasBody || hasMedia || hasExternalLink || hasEmbed || hasVideoPost;
 

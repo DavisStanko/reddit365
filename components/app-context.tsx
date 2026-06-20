@@ -49,6 +49,12 @@ interface AppContextValue {
   addSubreddit: (name: string) => void;
   removeSubreddit: (id: string) => void;
   reorderSubreddits: (oldIndex: number, newIndex: number) => void;
+
+  /** Media embedding settings */
+  mediaPostsEnabled: boolean;
+  setMediaPostsEnabled: (v: boolean) => void;
+  mediaCommentsEnabled: boolean;
+  setMediaCommentsEnabled: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -63,6 +69,10 @@ const AppContext = createContext<AppContextValue>({
   addSubreddit: () => {},
   removeSubreddit: () => {},
   reorderSubreddits: () => {},
+  mediaPostsEnabled: true,
+  setMediaPostsEnabled: () => {},
+  mediaCommentsEnabled: true,
+  setMediaCommentsEnabled: () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -71,6 +81,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentSort, setCurrentSortRaw] = useState<SortMode>("hot");
   const [subreddits, setSubredditsRaw] =
     useState<SubredditItem[]>(INITIAL_SUBSCRIBED);
+  const [mediaPostsEnabled, setMediaPostsEnabledRaw] = useState<boolean>(true);
+  const [mediaCommentsEnabled, setMediaCommentsEnabledRaw] = useState<boolean>(true);
 
   useEffect(() => {
     try {
@@ -98,6 +110,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error("Failed to load active feed", e);
+    }
+
+    try {
+      const storedMediaPosts = localStorage.getItem("reddit365_mediaPostsEnabled");
+      if (storedMediaPosts !== null) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMediaPostsEnabledRaw(storedMediaPosts !== "false");
+      }
+      const storedMediaComments = localStorage.getItem("reddit365_mediaCommentsEnabled");
+      if (storedMediaComments !== null) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMediaCommentsEnabledRaw(storedMediaComments !== "false");
+      }
+    } catch (e) {
+      console.error("Failed to load media settings", e);
+    }
+  }, []);
+
+  const setMediaPostsEnabled = useCallback((v: boolean) => {
+    setMediaPostsEnabledRaw(v);
+    try {
+      localStorage.setItem("reddit365_mediaPostsEnabled", String(v));
+    } catch (e) {
+      console.error("Failed to save media posts setting", e);
+    }
+  }, []);
+
+  const setMediaCommentsEnabled = useCallback((v: boolean) => {
+    setMediaCommentsEnabledRaw(v);
+    try {
+      localStorage.setItem("reddit365_mediaCommentsEnabled", String(v));
+    } catch (e) {
+      console.error("Failed to save media comments setting", e);
     }
   }, []);
 
@@ -183,6 +228,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addSubreddit,
         removeSubreddit,
         reorderSubreddits,
+        mediaPostsEnabled,
+        setMediaPostsEnabled,
+        mediaCommentsEnabled,
+        setMediaCommentsEnabled,
       }}
     >
       {children}
