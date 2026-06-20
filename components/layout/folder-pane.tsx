@@ -3,10 +3,8 @@
 import { useState } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   Globe,
   TrendingUp,
-  MoreVertical,
   Trash2,
   Plus,
 } from "lucide-react";
@@ -58,7 +56,6 @@ function SortableFolderItem({
   };
 
   const Icon = item.icon;
-  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <li ref={setNodeRef} style={style} className="folder-item-wrapper">
@@ -72,29 +69,17 @@ function SortableFolderItem({
         <Icon size={18} strokeWidth={1.5} className="folder-item__icon" />
         <span className="folder-item__label">{item.label.startsWith("r/") ? item.label.slice(2) : item.label}</span>
         {onRemove && (
-          <div
-            className="folder-item__more"
+          <button
+            className="folder-item__delete-btn"
+            aria-label={`Remove ${item.label}`}
             onClick={(e) => {
               e.stopPropagation();
-              setMenuOpen(!menuOpen);
+              onRemove(item.id);
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <MoreVertical size={14} className="folder-item__more-icon" />
-            {menuOpen && (
-              <div className="folder-item__menu">
-                <button
-                  className="folder-item__menu-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove(item.id);
-                  }}
-                >
-                  <Trash2 size={14} /> Delete
-                </button>
-              </div>
-            )}
-          </div>
+            <Trash2 size={14} className="folder-item__delete-icon" />
+          </button>
         )}
       </div>
     </li>

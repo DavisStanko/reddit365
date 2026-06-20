@@ -4,12 +4,11 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 
-type TabId = "using" | "performance" | "why" | "settings" | "feedback";
+type TabId = "using" | "performance" | "settings" | "feedback";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "using", label: "Using Reddit365" },
   { id: "performance", label: "Performance Notes" },
-  { id: "why", label: "Why This Frontend Is Limited" },
   { id: "settings", label: "Settings" },
   { id: "feedback", label: "Feedback" },
 ];
@@ -43,31 +42,26 @@ function TabUsing() {
       <h2 className="help-modal__section-title">Welcome to Reddit365</h2>
       <p className="help-modal__p">
         Reddit365 is a UI clone of Microsoft Outlook that displays Reddit content
-        in place of emails.
-      </p>
-
-      <h3 className="help-modal__subsection-title">Reopening This Menu</h3>
-      <p className="help-modal__p">
-        Click anywhere on the Outlook header to reopen this help panel later.
+        in place of emails. Click anywhere on the Outlook header to reopen this help panel later.
       </p>
 
       <h3 className="help-modal__subsection-title">Navigating Subreddits</h3>
       <p className="help-modal__p">
-        The left sidebar (the &ldquo;Folder Pane&rdquo;) lists your subscribed subreddits. Click any
+        The left sidebar lists your subscribed subreddits. Click any
         subreddit to load its posts.
       </p>
       <ul className="help-modal__list">
         <li>
-          <strong>Add a subreddit</strong> — Click the <em>+ Add a feed</em> button at the bottom
-          of the folder pane and type a subreddit name.
+          <strong>Add a subreddit</strong> — Click the <em>Add feed</em> button at the bottom
+          of the sidebar and enter a subreddit name.
         </li>
         <li>
-          <strong>Remove a subreddit</strong> — Hover over any subreddit row to reveal the{" "}
-          <em>⋯</em> menu, then choose <em>Remove</em>.
+          <strong>Remove a subreddit</strong> — Hover over any subreddit row and click the{" "}
+          <em>trash icon</em> to delete it.
         </li>
         <li>
           <strong>Reorder subreddits</strong> — Drag and drop rows in the folder pane to reorder
-          them. Your order is saved automatically.
+          them.
         </li>
       </ul>
 
@@ -181,42 +175,6 @@ function TabPerformance() {
   );
 }
 
-function TabWhy() {
-  return (
-    <div className="help-modal__tab-content">
-      <h2 className="help-modal__section-title">Why This Frontend Is Limited</h2>
-      <p className="help-modal__p help-modal__p--secondary">
-        <em>This section is a work in progress — more detail coming soon.</em>
-      </p>
-      <p className="help-modal__p">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut
-        labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco
-        laboris nisi ut aliquip ex ea commodo consequat.
-      </p>
-      <p className="help-modal__p">
-        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
-        pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt
-        mollit anim id est laborum.
-      </p>
-      <p className="help-modal__p">
-        Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque
-        laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi
-        architecto beatae vitae dicta sunt explicabo.
-      </p>
-      <p className="help-modal__p">
-        Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia
-        consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam
-        est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.
-      </p>
-      <p className="help-modal__p">
-        At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium
-        voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati
-        cupiditate non provident.
-      </p>
-    </div>
-  );
-}
-
 function TabSettings() {
   const { mediaPostsEnabled, setMediaPostsEnabled, mediaCommentsEnabled, setMediaCommentsEnabled } =
     useAppContext();
@@ -226,11 +184,6 @@ function TabSettings() {
       <h2 className="help-modal__section-title">Settings</h2>
 
       <div className="help-modal__setting-group">
-        <h3 className="help-modal__subsection-title">Media Embedding</h3>
-        <p className="help-modal__p">
-          Control whether images, videos, and embeds are rendered inline. Disabling these can
-          improve performance on slower connections or if you prefer a text-only reading experience.
-        </p>
 
         <div className="help-modal__setting-row">
           <div className="help-modal__setting-label">
@@ -269,11 +222,7 @@ function TabFeedback() {
     <div className="help-modal__tab-content">
       <h2 className="help-modal__section-title">Feedback</h2>
       <p className="help-modal__p">
-        Reddit365 is a personal project. If you&apos;ve found a bug, have a feature request, or just
-        want to say hi, feel free to reach out directly.
-      </p>
-      <p className="help-modal__p">
-        <strong>Feature requests &amp; bug reports:</strong>
+        If you&apos;ve found a bug or have a feature request, please send an email to:
       </p>
       <a
         href="mailto:davis@davisstanko.com"
@@ -282,10 +231,6 @@ function TabFeedback() {
       >
         davis@davisstanko.com
       </a>
-      <p className="help-modal__p" style={{ marginTop: "24px" }}>
-        Please include as much detail as possible — browser, OS, the subreddit you were viewing, and
-        what you expected vs. what happened.
-      </p>
     </div>
   );
 }

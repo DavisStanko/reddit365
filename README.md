@@ -20,7 +20,7 @@ A UI clone of Microsoft New Outlook that displays Reddit content in place of ema
 No login required. Open the app and start browsing.
 
 - **Add a subreddit:** click "New Folder" or the "+" button in the sidebar and enter a subreddit name.
-- **Remove or reorder:** hover a folder and click the three-dot menu to remove it, or drag it to a new position.
+- **Remove or reorder:** hover a folder row and click the trash icon that appears to remove it, or drag it to a new position.
 - **Read a post:** click any item in the feed to load it in the reading pane.
 - **Help & Settings:** click anywhere on the top blue header or the gray ribbon header to open the help modal.
 

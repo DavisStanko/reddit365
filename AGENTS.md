@@ -214,6 +214,6 @@ To ensure all agents are aligned on the core feature set, here is the master lis
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)
 - [x] **Feed Fetching & Pagination**: Implemented fetching via Reddit's public RSS feeds to bypass `.json` API blocks. Fetches one page on feed selection, loads more on infinite scroll, fetches comments only when a post is selected. Deep nested comment trees are not available via RSS (flat list only).
-- [x] **Subreddit List Persistence & Editing**: Subreddit list persists via `localStorage` and is editable (add feed button, 3 dots to show delete, drag and drop). (Fully Implemented)
+- [x] **Subreddit List Persistence & Editing**: Subreddit list persists via `localStorage` and is editable (add feed button, trash icon on row hover to delete — black by default, red on icon hover, drag and drop). (Fully Implemented)
 - [x] **Help & Settings Modal**: 5-tab Fluent-style modal triggered on first visit or header click. Provides usage instructions, technical notes, limitations, media toggles, and feedback link. (Fully Implemented)
 - [ ] **Background Fetching**: Periodically fetch new Reddit posts to keep the feed current. (Explicitly disabled to prevent rate limiting, per rule 6)

@@ -1314,57 +1314,33 @@ body {
   background: var(--outlook-blue-hover);
 }
 
-/* Folder Item More Menu */
-.folder-item__more {
+/* Folder Item Delete Button */
+.folder-item__delete-btn {
   margin-left: auto;
   opacity: 0;
   cursor: pointer;
-  padding: 2px;
+  padding: 2px 4px;
   border-radius: 2px;
-  position: relative;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 120ms ease, color 120ms ease;
 }
 
-.folder-item:hover .folder-item__more,
-.folder-item__more:hover {
+.folder-item:hover .folder-item__delete-btn {
   opacity: 1;
 }
 
-.folder-item__more:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.folder-item__more-icon {
-  color: var(--outlook-text-secondary);
-}
-
-.folder-item__menu {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  background: #ffffff;
-  border: 1px solid var(--outlook-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  z-index: 1000;
-  min-width: 120px;
-  padding: 4px 0;
-}
-
-.folder-item__menu-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  font-size: 13px;
+.folder-item__delete-icon {
   color: var(--outlook-text-primary);
-  cursor: pointer;
+  transition: color 120ms ease;
 }
 
-.folder-item__menu-btn:hover {
-  background: #f5f5f5;
+.folder-item__delete-btn:hover .folder-item__delete-icon {
+  color: #d92f2f;
 }
 
 /* Load More Button */
@@ -1463,7 +1439,7 @@ body {
 .help-modal__dialog {
   background: #ffffff;
   border-radius: 8px;
-  width: 720px;
+  width: 760px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 80px);
   display: flex;
@@ -1605,7 +1581,7 @@ body {
 
 .help-modal__tab-content {
   padding: 24px 28px 32px;
-  max-width: 640px;
+  max-width: 680px;
 }
 
 /* Typography */
