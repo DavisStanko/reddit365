@@ -28,4 +28,4 @@ Reddit heavily restricts unauthenticated API access, so Reddit365 uses public RS
 
 - **Read-only** — no login, voting, or replying.
 - **Flat comments** — the RSS feed doesn't include threading, so replies to comments look identical to top-level comments. The feed is also capped at 50 comments, sorted by Best only.
-- **Rate limiting** — Reddit throttles RSS requests. The app handles this with exponential backoff, but switching subreddits quickly may cause a delay.
+- **Rate limiting & Caching** — Reddit throttles RSS requests. The app handles this with exponential backoff, but switching subreddits quickly may cause a delay. To ensure stability, the backend is hardened with IP-based rate limiting, a 30-second upstream fetch timeout, and aggressively caches responses to Vercel.
