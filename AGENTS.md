@@ -98,6 +98,7 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
+| `lib/media-embed.tsx` | N/A | N/A | Modular media detection and rendering: `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, `MediaEmbedList` components |
 
 ---
 
@@ -122,9 +123,20 @@ When building UI, always use Outlook terminology in the interface, never Reddit 
 ## Data Layer
 
 The `Post` type currently has:
-- `id`, `title`, `subreddit`, `author`, `time`, `score`, `comments`
-- `body` (supports `**bold**` markdown)
-- `imageUrl?` (optional, shown only when `mediaEnabled` is true)
+- `id`, `title`, `subreddit`, `author`, `time`
+- `body` (text content of post, stripped from RSS HTML)
+- `imageUrl?` — direct image URL (i.redd.it, preview.redd.it, or direct image link)
+- `thumbnailUrl?` — preview thumbnail for **video posts only** (may be blocked, hence separate from `imageUrl`)
+- `mediaUrl?` / `mediaType?` — for native video (`"video"`) posts served directly
+- `permalink?` — Reddit URL of the post
+- `externalUrl?` — external link for link posts (not image/video/embed)
+- `isGallery?` — Reddit gallery posts (multiple images, only first is accessible)
+- `isVideo?` — v.redd.it video post; renders as 🎬 link instead of broken video
+- `embedUrl?` / `embedType?` — embeddable iframe URL and type (`"youtube"` | `"imgur"` | `"streamable"`)
+
+The `FlatComment` type has:
+- `id`, `author`, `time`, `body`, `depth`
+- `mediaUrls?` — array of `DetectedMedia` objects extracted from comment HTML (giphy, imgur, direct images, etc.)
 
 The fallback sample data was completely removed. When adding real Reddit API integration, rely on the Next.js API proxy in `app/api/reddit/route.ts`.
 
@@ -193,6 +205,10 @@ A feature is complete when:
 To ensure all agents are aligned on the core feature set, here is the master list of features and their current implementation status. When adding or modifying features, please update this list:
 
 - [x] **Post Formatting**: Posts are formatted like emails. Title is subject line, body and media in the body. External image links (e.g. `i.redd.it`) are automatically expanded into inline images. **Note:** Upvote counts and comment counts have been completely removed from the UI as they cannot be fetched via the unauthenticated `.rss` feed hack. Comments are fetched via RSS but displayed as a flat list. A link to the original post on Reddit is provided instead.
+- [x] **Image Post Rendering**: Fixed RSS XML parsing to use DOM queries (not regex on entity-encoded strings) for reliable image URL extraction. Image URLs from `i.redd.it`, `preview.redd.it`, and direct image links are rendered inline.
+- [x] **Video Post Rendering**: `v.redd.it` video posts are now rendered correctly — shows thumbnail (if available from RSS) and a "Watch video on Reddit" link. No longer falsely claims to provide a thumbnail when none is available.
+- [x] **Post Embeds**: YouTube, Imgur (album + single), and Streamable links are auto-detected and rendered as iframes in the reading pane.
+- [x] **Comment Media (Giphy & more)**: Comment HTML is parsed for embeddable media. Giphy GIFs, direct image URLs, Imgur, and Streamable links in comments are rendered inline via `lib/media-embed.tsx`. All media rendering is modular via `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, and `MediaEmbedList`.
 - [x] **Media Toggle**: Media can be turned on/off in settings. (Fully Implemented)
 - [x] **Feed Sorting**: Feed should be sorted by Hot, New, and Top. Force "all time" for Top, no timeline option. No "rising" option. (Fully Implemented)
 - [x] **Folder Unread Counts**: Unread counts (number of posts) beside feeds in the folder pane are explicitly NOT wanted. (Fully Implemented)

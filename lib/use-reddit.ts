@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { Post, FlatComment } from "./types";
+import { extractCommentMedia } from "./media-embed";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +35,7 @@ interface RedditState {
   comments: FlatComment[];
   commentsAfter: string | null;
   isLoadingComments: boolean;
+  hasFetchedComments: boolean;
   hasMoreComments: boolean;
   commentsError: string | null;
   commentsRetryInfo: RetryInfo | null;
@@ -251,43 +253,116 @@ function parsePostFeed(
     const matchSub = link.match(/\/r\/([^\/]+)/);
     const subreddit = matchSub ? `r/${matchSub[1]}` : fallbackFeed;
 
-    let imageUrl: string | undefined;
-    const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
-    if (imgMatch) imageUrl = imgMatch[1];
-
+    // ---------------------------------------------------------------------------
+    // Parse the content HTML via DOM (not regex on raw XML-encoded string)
+    // ---------------------------------------------------------------------------
     const tmp = document.createElement("div");
     tmp.innerHTML = content;
 
+    // Extract [link] and [comments] anchors using DOM (href is fully decoded)
     let externalUrl: string | undefined;
-    const linkAnchors = tmp.querySelectorAll("a");
     let linkHref = "";
     let commentsHref = "";
-    linkAnchors.forEach((a) => {
-      if (a.textContent === "[link]") linkHref = a.getAttribute("href") || "";
-      if (a.textContent === "[comments]")
-        commentsHref = a.getAttribute("href") || "";
+    tmp.querySelectorAll("a").forEach((a) => {
+      const text = a.textContent?.trim();
+      if (text === "[link]") linkHref = a.getAttribute("href") || "";
+      if (text === "[comments]") commentsHref = a.getAttribute("href") || "";
     });
     if (linkHref && commentsHref && linkHref !== commentsHref)
       externalUrl = linkHref;
 
+    // Extract thumbnail image from the content HTML (preview.redd.it or external-preview)
+    let imageUrl: string | undefined;
+    const contentImg = tmp.querySelector("img");
+    if (contentImg) {
+      // Use .src (fully resolved, HTML entities decoded) not getAttribute (raw &amp; etc.)
+      const src = contentImg.src || contentImg.getAttribute("src") || "";
+      if (src && !src.startsWith("http://localhost") && !src.startsWith(window.location.origin)) {
+        imageUrl = src || undefined;
+      } else {
+        // Fallback: decode the raw attribute manually
+        const rawSrc = contentImg.getAttribute("src") || "";
+        if (rawSrc) imageUrl = rawSrc.replace(/&amp;/g, "&");
+      }
+    }
+
+    // Fallback: try media:thumbnail from entry XML (for posts without img in content)
+    if (!imageUrl) {
+      const mediaThumb = entry.getElementsByTagNameNS(
+        "http://search.yahoo.com/mrss/",
+        "thumbnail"
+      )[0];
+      if (mediaThumb) {
+        imageUrl = mediaThumb.getAttribute("url") || undefined;
+      }
+    }
+
     let isGallery = false;
+    let isVideo = false;
+    let thumbnailUrl: string | undefined; // separate from imageUrl for video posts
+    let embedUrl: string | undefined;
+    let embedType: "youtube" | "imgur" | "streamable" | undefined;
+
     if (externalUrl) {
-      const isRedditImage = externalUrl.includes("i.redd.it");
-      const isOtherImage = externalUrl.endsWith(".jpg") || externalUrl.endsWith(".jpeg") || externalUrl.endsWith(".png") || externalUrl.endsWith(".gif");
-      
-      if (isRedditImage || isOtherImage) {
-        console.log("[useReddit] Converting external link to image:", externalUrl);
+      const isRedditImage =
+        externalUrl.includes("i.redd.it") ||
+        externalUrl.includes("preview.redd.it");
+      const isOtherImage =
+        externalUrl.endsWith(".jpg") ||
+        externalUrl.endsWith(".jpeg") ||
+        externalUrl.endsWith(".png") ||
+        externalUrl.endsWith(".gif") ||
+        externalUrl.endsWith(".webp");
+      const isRedditVideo = externalUrl.includes("v.redd.it");
+
+      const youtubeMatch = externalUrl.match(
+        /(?:youtube\.com\/.*[?&]v=|youtu\.be\/)([^&?]+)/
+      );
+      const imgurAlbumMatch = externalUrl.match(
+        /imgur\.com\/(?:a|gallery)\/([^\/?]+)/
+      );
+      const imgurSingleMatch = externalUrl.match(/imgur\.com\/([a-zA-Z0-9]+)$/);
+      const streamableMatch = externalUrl.match(
+        /streamable\.com\/([a-zA-Z0-9]+)$/
+      );
+
+      if (youtubeMatch) {
+        embedType = "youtube";
+        embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+        externalUrl = undefined;
+        imageUrl = undefined;
+      } else if (imgurAlbumMatch) {
+        embedType = "imgur";
+        embedUrl = `https://imgur.com/a/${imgurAlbumMatch[1]}/embed?pub=true`;
+        externalUrl = undefined;
+        imageUrl = undefined;
+      } else if (imgurSingleMatch && !isOtherImage) {
+        embedType = "imgur";
+        embedUrl = `https://imgur.com/${imgurSingleMatch[1]}/embed?pub=true`;
+        externalUrl = undefined;
+        imageUrl = undefined;
+      } else if (streamableMatch) {
+        embedType = "streamable";
+        embedUrl = `https://streamable.com/e/${streamableMatch[1]}`;
+        externalUrl = undefined;
+        imageUrl = undefined;
+      } else if (isRedditImage || isOtherImage) {
         imageUrl = externalUrl;
         externalUrl = undefined;
       } else if (externalUrl.includes("/gallery/")) {
         isGallery = true;
         if (imageUrl && imageUrl.includes("preview.redd.it")) {
-          imageUrl = imageUrl.split("?")[0].replace("preview.redd.it", "i.redd.it");
+          const cleanPath = imageUrl.split("?")[0].replace("preview.redd.it", "i.redd.it");
+          imageUrl = cleanPath;
         }
+      } else if (isRedditVideo) {
+        isVideo = true;
+        thumbnailUrl = imageUrl;
+        imageUrl = undefined;
       }
     }
 
-    let bodyText = tmp.textContent || tmp.innerText || "";
+    let bodyText = tmp.textContent || "";
     bodyText = bodyText
       .replace(
         /submitted by\s+\/?u\/[^\s]+(\s+to\s+\/?r\/[^\s]+)?(\s+\[link\])?(\s+\[comments\])?/gi,
@@ -307,15 +382,17 @@ function parsePostFeed(
       subreddit,
       author: authorName,
       time: updated ? new Date(updated).toLocaleDateString() : "recent",
-      score: "0",
-      comments: 0,
       body: bodyText,
       imageUrl,
+      thumbnailUrl,
       permalink: link.replace(/old\.reddit\.com/i, "www.reddit.com"),
       externalUrl: externalUrl
         ? externalUrl.replace(/old\.reddit\.com/i, "www.reddit.com")
         : undefined,
       isGallery,
+      isVideo,
+      embedUrl,
+      embedType,
     };
   });
 
@@ -372,6 +449,7 @@ export function useReddit(
   const [comments, setComments] = useState<FlatComment[]>([]);
   const [commentsAfter, setCommentsAfter] = useState<string | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [hasFetchedComments, setHasFetchedComments] = useState(false);
   const [hasMoreComments, setHasMoreComments] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentsRetryInfo, setCommentsRetryInfo] = useState<RetryInfo | null>(null);
@@ -460,105 +538,18 @@ export function useReddit(
   }, [feed, sort]);
 
   // ------------------------------------------------------------------
-  // Effect: fetch comments when selectedPost changes
+  // Effect: clear comments when selectedPost changes
   // ------------------------------------------------------------------
   useEffect(() => {
-    const controller = new AbortController();
-
-    if (!selectedPost?.permalink) return;
-
-    const permalink = selectedPost.permalink;
-
-    const doFetch = async () => {
-      setComments([]);
-      setCommentsAfter(null);
-      setHasMoreComments(true);
-      setCommentsError(null);
-      setCommentsRetryInfo(null);
-      commentsAfterRef.current = null;
-      loadingCommentsRef.current = true;
-      setIsLoadingComments(true);
-
-      try {
-        const url = buildCommentsUrl(permalink, null);
-        const res = await fetchWithRetry(
-          url,
-          controller.signal,
-          4000,
-          (info) => setCommentsRetryInfo(info),
-        );
-        setCommentsRetryInfo(null);
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "No response body");
-          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
-        }
-
-        const text = await res.text();
-        if (controller.signal.aborted) return;
-
-        let newComments: FlatComment[] = [];
-
-        if (text.trim().startsWith("<")) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, "text/xml");
-          const entries = Array.from(doc.querySelectorAll("entry"));
-          // The first <entry> in Reddit's comment RSS is always the post itself — skip it.
-          newComments = entries.slice(1).map((entry) => {
-            const authorName =
-              entry
-                .querySelector("author > name")
-                ?.textContent?.replace("/u/", "") || "unknown";
-            const content = entry.querySelector("content")?.textContent || "";
-            const updated =
-              entry.querySelector("updated")?.textContent || "";
-            const idText =
-              entry.querySelector("id")?.textContent || String(Math.random());
-
-            const tmp = document.createElement("div");
-            tmp.innerHTML = content;
-            const bodyText = tmp.textContent || tmp.innerText || "";
-
-            return {
-              id: idText,
-              author: authorName,
-              time: updated
-                ? new Date(updated).toLocaleDateString()
-                : "recent",
-              score: "0",
-              body: bodyText,
-              depth: 0,
-            };
-          });
-
-          commentsAfterRef.current = null;
-          setCommentsAfter(null);
-          setHasMoreComments(false);
-          setComments(newComments);
-        } else {
-          setComments([]);
-          setHasMoreComments(false);
-        }
-      } catch (err: unknown) {
-        if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] comments fetch failed:", err);
-        setCommentsError(err instanceof Error ? err.message : String(err));
-        setCommentsRetryInfo(null);
-        setHasMoreComments(false);
-      } finally {
-        if (!controller.signal.aborted) {
-          loadingCommentsRef.current = false;
-          setIsLoadingComments(false);
-        }
-      }
-    };
-
-    void doFetch();
-
-    return () => {
-      controller.abort();
-      loadingCommentsRef.current = false;
-    };
+    setComments([]);
+    setCommentsAfter(null);
+    setHasMoreComments(false);
+    setCommentsError(null);
+    setCommentsRetryInfo(null);
+    setHasFetchedComments(false);
+    commentsAfterRef.current = null;
+    loadingCommentsRef.current = false;
+    setIsLoadingComments(false);
   }, [selectedPost?.id, selectedPost?.permalink]);
 
   // ------------------------------------------------------------------
@@ -758,8 +749,13 @@ export function useReddit(
             const idText =
               entry.querySelector("id")?.textContent || String(Math.random());
 
+            // Parse comment HTML via DOM
             const tmp = document.createElement("div");
             tmp.innerHTML = content;
+
+            // Extract embeddable media from comment HTML before stripping
+            const mediaUrls = extractCommentMedia(content);
+
             const bodyText = tmp.textContent || tmp.innerText || "";
 
             return {
@@ -768,9 +764,9 @@ export function useReddit(
               time: updated
                 ? new Date(updated).toLocaleDateString()
                 : "recent",
-              score: "0",
               body: bodyText,
               depth: 0,
+              mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
             };
           });
 
@@ -778,9 +774,11 @@ export function useReddit(
           setCommentsAfter(null);
           setHasMoreComments(false);
           setComments(newComments);
+          setHasFetchedComments(true);
         } else {
           setComments([]);
           setHasMoreComments(false);
+          setHasFetchedComments(true);
         }
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
@@ -788,6 +786,7 @@ export function useReddit(
         setCommentsError(err instanceof Error ? err.message : String(err));
         setCommentsRetryInfo(null);
         setHasMoreComments(false);
+        setHasFetchedComments(true);
       } finally {
         if (!controller.signal.aborted) {
           loadingCommentsRef.current = false;
@@ -810,6 +809,7 @@ export function useReddit(
     comments,
     commentsAfter,
     isLoadingComments,
+    hasFetchedComments,
     hasMoreComments,
     commentsError,
     commentsRetryInfo,

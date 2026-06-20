@@ -9,6 +9,7 @@ import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
 import type { FlatComment } from "@/lib/types";
 import { linkifyText } from "@/lib/linkify";
+import { MediaEmbedList } from "@/lib/media-embed";
 
 function CommentNodeUI({ comment }: { comment: FlatComment }) {
   return (
@@ -45,6 +46,12 @@ function CommentNodeUI({ comment }: { comment: FlatComment }) {
       >
         {linkifyText(comment.body)}
       </div>
+      {comment.mediaUrls && comment.mediaUrls.length > 0 && (
+        <MediaEmbedList
+          mediaList={comment.mediaUrls}
+          style={{ marginTop: "8px" }}
+        />
+      )}
     </div>
   );
 }
@@ -54,6 +61,7 @@ function CommentThread() {
   const {
     comments,
     isLoadingComments,
+    hasFetchedComments,
     hasMoreComments,
     commentsError,
     commentsRetryInfo,
@@ -99,23 +107,26 @@ function CommentThread() {
         <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
           Replies
         </h3>
-        <button
-          className="post-list__header-btn"
-          type="button"
-          aria-label="Refresh Replies"
-          onClick={refreshComments}
-          title="Refresh Replies"
-          style={{ width: "24px", height: "24px" }}
-        >
-          <RefreshCw
-            size={14}
-            className={
-              isLoadingComments && comments.length === 0
-                ? "post-list__icon-spin"
-                : ""
-            }
-          />
-        </button>
+        {!(!hasFetchedComments && !isLoadingComments && !commentsError) && (
+          <button
+            className="post-list__header-btn"
+            type="button"
+            aria-label="Refresh Replies"
+            onClick={refreshComments}
+            title="Refresh Replies"
+            style={{ width: "24px", height: "24px" }}
+            disabled={isLoadingComments}
+          >
+            <RefreshCw
+              size={14}
+              className={
+                isLoadingComments && comments.length === 0
+                  ? "post-list__icon-spin"
+                  : ""
+              }
+            />
+          </button>
+        )}
       </div>
       <div style={{ color: "var(--outlook-text-secondary)", fontSize: "12px", padding: "0 24px 16px 24px", margin: "0 -24px 16px -24px", borderBottom: "1px solid var(--outlook-border)" }}>
         Replies are displayed as a flat list due to API constraints.
@@ -154,7 +165,26 @@ function CommentThread() {
           )}
         </div>
       )}
-      {!isLoadingComments && comments.length === 0 && !commentsError && (
+      {!hasFetchedComments && !isLoadingComments && !commentsError && (
+        <div style={{ padding: "12px 0" }}>
+          <button
+            onClick={refreshComments}
+            className="reading-view__fetch-comments-btn"
+            style={{
+              padding: "6px 16px",
+              backgroundColor: "var(--outlook-folder-bg)",
+              border: "1px solid var(--outlook-border)",
+              borderRadius: "4px",
+              fontSize: "14px",
+              color: "var(--outlook-text-primary)",
+              cursor: "pointer",
+            }}
+          >
+            Load replies
+          </button>
+        </div>
+      )}
+      {hasFetchedComments && !isLoadingComments && comments.length === 0 && !commentsError && (
         <div
           style={{ color: "var(--outlook-text-secondary)", fontSize: "14px" }}
         >
@@ -231,9 +261,11 @@ export function ContentPane() {
   }
 
   const hasBody = !!(post.body && post.body.trim().length > 0);
-  const hasMedia = !!mediaUrl;
-  const hasExternalLink = !!post.externalUrl && !post.isGallery;
-  const hasContent = hasBody || hasMedia || hasExternalLink;
+  const hasMedia = !!mediaUrl || !!post.isGallery;
+  const hasVideoPost = !!post.isVideo;
+  const hasEmbed = !!post.embedUrl;
+  const hasExternalLink = !!post.externalUrl && !post.isGallery && !hasEmbed && !post.isVideo;
+  const hasContent = hasBody || hasMedia || hasExternalLink || hasEmbed || hasVideoPost;
 
   return (
     <section
@@ -303,30 +335,28 @@ export function ContentPane() {
         >
           {hasMedia && (
             <div className="reading-view__media" style={{ padding: "0 24px" }}>
-              {mediaType === "video" ? (
-                <video
-                  className="reading-view__video"
-                  controls
-                  playsInline
-                  preload="metadata"
-                  src={mediaUrl}
-                  style={{ display: "block" }}
-                />
-              ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={mediaUrl}
-                  alt=""
-                  className="reading-view__image"
-                  style={{ display: "block" }}
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = "none";
-                    if (target.parentElement) {
-                      target.parentElement.style.display = "none";
-                    }
-                  }}
-                />
+              {mediaUrl && (
+                mediaType === "video" ? (
+                  <video
+                    className="reading-view__video"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={mediaUrl}
+                    style={{ display: "block" }}
+                  />
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={mediaUrl}
+                    alt=""
+                    className="reading-view__image"
+                    style={{ display: "block" }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                )
               )}
               {post.isGallery && (
                 <div style={{ marginTop: "16px", fontSize: "13px", color: "var(--outlook-text-tertiary)", textAlign: "center", lineHeight: "1.4" }}>
@@ -344,6 +374,55 @@ export function ContentPane() {
                   </a> to see more.
                 </div>
               )}
+            </div>
+          )}
+
+          {hasVideoPost && (
+            <div className="reading-view__media" style={{ padding: "0 24px" }}>
+              {post.thumbnailUrl && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={post.thumbnailUrl}
+                  alt=""
+                  className="reading-view__image"
+                  style={{ display: "block" }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              )}
+              <div style={{ marginTop: post.thumbnailUrl ? "12px" : "0", fontSize: "13px", color: "var(--outlook-text-tertiary)", lineHeight: "1.4" }}>
+                🎬{" "}
+                <a
+                  href={post.externalUrl || post.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--outlook-blue)", textDecoration: "none" }}
+                  onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                  onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+                >
+                  Watch video on Reddit
+                </a>
+              </div>
+            </div>
+          )}
+
+          {hasEmbed && (
+            <div className="reading-view__embed" style={{ padding: "0 24px" }}>
+              <iframe
+                src={post.embedUrl}
+                width="100%"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ 
+                  borderRadius: "4px", 
+                  backgroundColor: "#000",
+                  aspectRatio: post.embedType === "youtube" || post.embedType === "streamable" ? "16/9" : undefined,
+                  height: post.embedType === "youtube" || post.embedType === "streamable" ? "auto" : "550px",
+                  maxWidth: "800px"
+                }}
+              />
             </div>
           )}
 
