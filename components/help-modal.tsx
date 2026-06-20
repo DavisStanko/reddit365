@@ -42,14 +42,13 @@ function TabUsing() {
     <div className="help-modal__tab-content">
       <h2 className="help-modal__section-title">Welcome to Reddit365</h2>
       <p className="help-modal__p">
-        Reddit365 is a pixel-faithful UI clone of Microsoft Outlook that displays Reddit content
-        instead of emails. Everything you see is real Reddit data — just disguised as your inbox.
+        Reddit365 is a UI clone of Microsoft Outlook that displays Reddit content
+        in place of emails.
       </p>
 
       <h3 className="help-modal__subsection-title">Reopening This Menu</h3>
       <p className="help-modal__p">
-        Click anywhere on either of the two header images at the top of the window to reopen this
-        help panel at any time.
+        Click anywhere on the Outlook header to reopen this help panel later.
       </p>
 
       <h3 className="help-modal__subsection-title">Navigating Subreddits</h3>
@@ -154,7 +153,7 @@ function TabPerformance() {
       <h3 className="help-modal__subsection-title">Rate Limiting &amp; Retry Logic</h3>
       <p className="help-modal__p">
         Reddit enforces aggressive rate limits. If the proxy receives a <code>429 Too Many
-        Requests</code> response, it implements an exponential backoff strategy: up to 5 retry
+          Requests</code> response, it implements an exponential backoff strategy: up to 5 retry
         attempts, with each delay doubling. The <code>Retry-After</code> header is honoured if
         present. An IP-based rate limit guard is also built into the proxy to prevent individual
         users from hammering Reddit. If you see a rate-limit warning in the UI, this is
