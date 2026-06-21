@@ -300,7 +300,6 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
         >
           {activeTab === "using" && <TabUsing />}
           {activeTab === "performance" && <TabPerformance />}
-          {activeTab === "why" && <TabWhy />}
           {activeTab === "settings" && <TabSettings />}
           {activeTab === "feedback" && <TabFeedback />}
         </div>
