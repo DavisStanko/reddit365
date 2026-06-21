@@ -52,7 +52,7 @@ function TabUsing() {
       </p>
       <ul className="help-modal__list">
         <li>
-          <strong>Add a subreddit</strong> — Click the <em>Add feed</em> button at the bottom
+          <strong>Add a subreddit</strong> — Click <em>add feed</em> at the bottom
           of the sidebar and enter a subreddit name.
         </li>
         <li>

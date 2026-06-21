@@ -1439,7 +1439,7 @@ body {
 .help-modal__dialog {
   background: #ffffff;
   border-radius: 8px;
-  width: 760px;
+  width: 720px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 80px);
   display: flex;
