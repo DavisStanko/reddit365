@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
 import { useRedditContext } from "@/components/reddit-context";
@@ -66,38 +63,8 @@ function CommentThread() {
     hasMoreComments,
     commentsError,
     commentsRetryInfo,
-    loadMoreComments,
     refreshComments,
   } = useRedditContext();
-
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-
-  // Infinite scroll for comments — observe sentinel within the reading-view scroll container
-  useEffect(() => {
-    observerRef.current?.disconnect();
-
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    let scrollRoot: HTMLElement | null = sentinel.parentElement;
-    while (scrollRoot && !scrollRoot.classList.contains("reading-view")) {
-      scrollRoot = scrollRoot.parentElement;
-    }
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreComments();
-        }
-      },
-      { root: scrollRoot, rootMargin: "200px" },
-    );
-
-    observerRef.current.observe(sentinel);
-
-    return () => observerRef.current?.disconnect();
-  }, [loadMoreComments]);
 
   return (
     <div
@@ -197,19 +164,6 @@ function CommentThread() {
         <CommentNodeUI key={`${comment.id}-${idx}`} comment={comment} />
       ))}
 
-      <div ref={sentinelRef} aria-hidden="true" />
-
-      {isLoadingComments && comments.length > 0 && (
-        <div
-          style={{
-            color: "var(--outlook-text-secondary)",
-            fontSize: "14px",
-            marginTop: "12px",
-          }}
-        >
-          Loading more replies...
-        </div>
-      )}
 
       {!isLoadingComments && !hasMoreComments && comments.length > 0 && (
         <div

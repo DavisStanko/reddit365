@@ -26,9 +26,7 @@ export interface RetryInfo {
 
 interface RedditState {
   posts: Post[];
-  after: string | null;
   isLoadingPosts: boolean;
-  hasMorePosts: boolean;
   postsError: string | null;
   postsRetryInfo: RetryInfo | null;
 
@@ -42,8 +40,6 @@ interface RedditState {
 }
 
 export interface UseRedditReturn extends RedditState {
-  loadMorePosts: () => void;
-  loadMoreComments: () => void;
   refreshPosts: () => void;
   refreshComments: () => void;
 }
@@ -424,9 +420,7 @@ export function useReddit(
 ): UseRedditReturn {
   // ---- Posts state ----
   const [posts, setPosts] = useState<Post[]>([]);
-  const [after, setAfter] = useState<string | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  const [hasMorePosts, setHasMorePosts] = useState(true);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [postsRetryInfo, setPostsRetryInfo] = useState<RetryInfo | null>(null);
 
@@ -438,8 +432,6 @@ export function useReddit(
     setPrevFeed(feed);
     setPrevSort(sort);
     setPosts([]);
-    setAfter(null);
-    setHasMorePosts(true);
     setPostsError(null);
     setPostsRetryInfo(null);
     setIsLoadingPosts(true);
@@ -455,7 +447,6 @@ export function useReddit(
   const [commentsRetryInfo, setCommentsRetryInfo] = useState<RetryInfo | null>(null);
 
   // ---- Refs to avoid stale closures ----
-  const afterRef = useRef<string | null>(null);
   const loadingPostsRef = useRef(false);
   const commentsAfterRef = useRef<string | null>(null);
   const loadingCommentsRef = useRef(false);
@@ -478,11 +469,8 @@ export function useReddit(
 
     const doFetch = async () => {
       setPosts([]);
-      setAfter(null);
-      setHasMorePosts(true);
       setPostsError(null);
       setPostsRetryInfo(null);
-      afterRef.current = null;
       loadingPostsRef.current = true;
       setIsLoadingPosts(true);
 
@@ -509,18 +497,13 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const { posts: newPosts, nextAfter } = parsePostFeed(text, feed);
-
-        afterRef.current = nextAfter;
-        setAfter(nextAfter);
-        setHasMorePosts(nextAfter !== null);
+        const { posts: newPosts } = parsePostFeed(text, feed);
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] posts fetch failed:", err);
         setPostsError(err instanceof Error ? err.message : String(err));
         setPostsRetryInfo(null);
-        setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
@@ -553,93 +536,12 @@ export function useReddit(
   }, [selectedPost?.id, selectedPost?.permalink]);
 
   // ------------------------------------------------------------------
-  // loadMorePosts — append next page on scroll
-  // ------------------------------------------------------------------
-  const loadMorePosts = useCallback(() => {
-    if (loadingPostsRef.current || !afterRef.current) return;
-
-    const currentAfter = afterRef.current;
-    loadingPostsRef.current = true;
-    setIsLoadingPosts(true);
-    setPostsRetryInfo(null);
-
-    const controller = new AbortController();
-
-    const doFetch = async () => {
-      try {
-        const url = buildPostsUrl(
-          feedRef.current,
-          sortRef.current,
-          currentAfter,
-        );
-        const res = await fetchWithRetry(
-          url,
-          controller.signal,
-          4000,
-          (info) => setPostsRetryInfo(info),
-        );
-        setPostsRetryInfo(null);
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => "No response body");
-          if ((res.status === 404 && text.includes("page not found")) ||
-            (res.status === 403 && text.includes(": private"))) {
-            const name = feedRef.current.replace(/^r\//, "");
-            throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
-          }
-          throw new Error(`HTTP ${res.status} ${res.statusText}\n${text}`);
-        }
-
-        const text = await res.text();
-        if (controller.signal.aborted) return;
-
-        const { posts: newPosts, nextAfter } = parsePostFeed(
-          text,
-          feedRef.current,
-        );
-
-        afterRef.current = nextAfter;
-        setAfter(nextAfter);
-        setHasMorePosts(nextAfter !== null);
-
-        setPosts((prev) => {
-          const existingIds = new Set(prev.map((p) => p.id));
-          const unique = newPosts.filter((p) => !existingIds.has(p.id));
-          return [...prev, ...unique];
-        });
-      } catch (err: unknown) {
-        if ((err as Error).name === "AbortError") return;
-        console.warn("[useReddit] load more posts failed:", err);
-        setPostsRetryInfo(null);
-        setHasMorePosts(false);
-      } finally {
-        if (!controller.signal.aborted) {
-          loadingPostsRef.current = false;
-          setIsLoadingPosts(false);
-        }
-      }
-    };
-
-    void doFetch();
-  }, []);
-
-  // ------------------------------------------------------------------
-  // loadMoreComments — not supported by Reddit RSS
-  // ------------------------------------------------------------------
-  const loadMoreComments = useCallback(() => {
-    // Comment pagination is not supported via RSS — one request per post.
-  }, []);
-
-  // ------------------------------------------------------------------
   // refreshPosts — force re-fetch from page 1
   // ------------------------------------------------------------------
   const refreshPosts = useCallback(() => {
     setPosts([]);
-    setAfter(null);
-    setHasMorePosts(true);
     setPostsError(null);
     setPostsRetryInfo(null);
-    afterRef.current = null;
     loadingPostsRef.current = false;
 
     const controller = new AbortController();
@@ -669,21 +571,13 @@ export function useReddit(
         const text = await res.text();
         if (controller.signal.aborted) return;
 
-        const { posts: newPosts, nextAfter } = parsePostFeed(
-          text,
-          feedRef.current,
-        );
-
-        afterRef.current = nextAfter;
-        setAfter(nextAfter);
-        setHasMorePosts(nextAfter !== null);
+        const { posts: newPosts } = parsePostFeed(text, feedRef.current);
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] refresh failed:", err);
         setPostsError(err instanceof Error ? err.message : String(err));
         setPostsRetryInfo(null);
-        setHasMorePosts(false);
       } finally {
         if (!controller.signal.aborted) {
           loadingPostsRef.current = false;
@@ -800,9 +694,7 @@ export function useReddit(
 
   return {
     posts,
-    after,
     isLoadingPosts,
-    hasMorePosts,
     postsError,
     postsRetryInfo,
 
@@ -814,8 +706,6 @@ export function useReddit(
     commentsError,
     commentsRetryInfo,
 
-    loadMorePosts,
-    loadMoreComments,
     refreshPosts,
     refreshComments,
   };

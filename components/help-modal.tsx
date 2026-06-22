@@ -64,34 +64,24 @@ function TabUsing() {
           them.
         </li>
       </ul>
-
-      <h3 className="help-modal__subsection-title">Opening Posts</h3>
-      <p className="help-modal__p">
-        Click any post in the middle column (the &ldquo;Message List&rdquo;) to open it in the
-        reading pane on the right. The post title, body, media, and external links will all render
-        inline.
-      </p>
-
+      
       <h3 className="help-modal__subsection-title">Sorting Posts</h3>
       <p className="help-modal__p">
         Use the <strong>Hot</strong>, <strong>New</strong>, and <strong>Top</strong> tabs in the
-        message list header to change how posts are sorted. <em>Top</em> always shows all-time top
-        posts.
+        message list header to change how posts are sorted.
+      </p>
+
+      <h3 className="help-modal__subsection-title">Opening Posts</h3>
+      <p className="help-modal__p">
+        Click any post to open it in the reading pane.
+        inline.
       </p>
 
       <h3 className="help-modal__subsection-title">Loading Replies</h3>
       <p className="help-modal__p">
-        Replies (comments) are not loaded automatically — click the <strong>Load replies</strong>{" "}
+        Replies (comments) are not loaded automatically. Click the <strong>Load replies</strong>{" "}
         button at the bottom of any open post to fetch them. Reddit&apos;s public feed caps replies
-        at 50 and only returns a flat list — nested threads are not available without authentication.
-        A link to the full Reddit thread is always provided.
-      </p>
-
-      <h3 className="help-modal__subsection-title">Loading More Posts</h3>
-      <p className="help-modal__p">
-        Scroll to the bottom of the message list to automatically load the next page of posts
-        (up to 100 per page). A <em>Load more</em> button appears if automatic loading doesn&apos;t
-        trigger.
+        at 50 and only returns a flat list.
       </p>
     </div>
   );
@@ -101,75 +91,45 @@ function TabPerformance() {
   return (
     <div className="help-modal__tab-content">
       <h2 className="help-modal__section-title">Performance &amp; Architecture Notes</h2>
-      <p className="help-modal__p help-modal__p--secondary">
-        This section is intentionally technical. It explains the engineering decisions behind
-        Reddit365 and why certain limitations exist.
-      </p>
 
       <h3 className="help-modal__subsection-title">Why Not the Reddit API?</h3>
       <p className="help-modal__p">
-        Reddit&apos;s official API requires OAuth 2.0 authentication. Setting up OAuth for a
-        public-facing web app is blocked by Reddit&apos;s current app creation policies — they
-        heavily restrict new third-party app registrations. Client-side <code>fetch</code> to{" "}
-        <code>.json</code> endpoints fails immediately due to CORS. Server-side proxy requests to
-        those same endpoints also fail because Reddit now redirects unauthenticated{" "}
-        <code>.json</code> requests to HTML login pages, causing JSON parse errors. Every possible
-        avenue was exhaustively tested.
+        Reddit actively blocks third-party frontends like this one from using their API. The workaround? Appending <code>.rss</code> to the subreddit URL returns a valid RSS feed. This is the only read viable read path Reddit exposes.
       </p>
 
-      <h3 className="help-modal__subsection-title">The RSS Hack</h3>
+      <h3 className="help-modal__subsection-title">Proxy & Caching</h3>
       <p className="help-modal__p">
-        The only viable unauthenticated, read-only path is Reddit&apos;s public RSS feeds. Appending{" "}
-        <code>.rss</code> to any subreddit URL returns valid XML without authentication. A Next.js
-        server-side API proxy (<code>/api/reddit/route.ts</code>) fetches these feeds, and the
-        client parses the XML using the browser&apos;s built-in <code>DOMParser</code>.
-      </p>
-      <p className="help-modal__p">
-        <strong>Post limit:</strong> Reddit RSS hard-caps at 100 posts per request. One request of
-        100 is strictly better for rate limiting than multiple small requests. Infinite scroll only
-        triggers a second request when you actually scroll past 100 posts.
-      </p>
-      <p className="help-modal__p">
-        <strong>Comment limit:</strong> The comment RSS feed is hard-capped at 50 replies by Reddit
-        regardless of any <code>limit</code> parameter — changing it has zero effect. Comments are
-        always flat (no nested threads).
+        Because browsers block direct RSS fetches too (CORS), a server-side proxy fetches the feeds on your behalf. This also allows caching so Reddit is only contacted once per feed per day, no matter how many users load the same subreddit. Every RSS URL the proxy fetches is stored in Next.js&apos;s native Data Cache for{" "} <strong>24 hours</strong>. Most loads are served from cache and are nearly instant.
+        The <strong>refresh button</strong> bypasses the cache to fetch live data immediately.
       </p>
 
-      <h3 className="help-modal__subsection-title">Server-Side Caching</h3>
+      <h3 className="help-modal__subsection-title">RSS Feed Limits</h3>
       <p className="help-modal__p">
-        The API proxy uses Next.js&apos;s native Data Cache with a <strong>24-hour TTL</strong>.
-        This means Reddit&apos;s servers are only hit once per unique URL per day, regardless of how
-        many users visit Reddit365. The cache is shared across all serverless invocations on Vercel.
-        Manual refresh (via the refresh button in the post list header) bypasses the cache and
-        fetches fresh data immediately.
+        Reddit hard-caps RSS feeds at <strong>100 posts per request</strong>. There is no way to get
+        more. Reddit365 always requests the maximum in a single call — one large request is far
+        friendlier to Reddit&apos;s rate limits than multiple small paginated ones.
+      </p>
+      <p className="help-modal__p">
+        Comments have their own RSS feed, capped by Reddit at roughly <strong>50 replies</strong>{" "}
+        regardless of any <code>limit=</code> parameter — Reddit silently ignores it. Comments are
+        also returned as a flat list; the RSS format does not preserve thread nesting.
       </p>
 
-      <h3 className="help-modal__subsection-title">Rate Limiting &amp; Retry Logic</h3>
+      <h3 className="help-modal__subsection-title">Why Replies Need a Button</h3>
       <p className="help-modal__p">
-        Reddit enforces aggressive rate limits. If the proxy receives a <code>429 Too Many
-          Requests</code> response, it implements an exponential backoff strategy: up to 5 retry
-        attempts, with each delay doubling. The <code>Retry-After</code> header is honoured if
-        present. An IP-based rate limit guard is also built into the proxy to prevent individual
-        users from hammering Reddit. If you see a rate-limit warning in the UI, this is
-        Reddit&apos;s infrastructure throttling the request — not a bug in Reddit365.
+        When a feed loads, all 100 posts arrive in one request and clicking a post costs nothing —
+        the data is already in memory. Comments are different: each &ldquo;Load replies&rdquo; click
+        is a brand new request to Reddit, and fetching 50 comments is roughly as expensive as the
+        initial 100-post fetch. Doing it automatically on every post click would burn through
+        Reddit&apos;s rate limits fast.
       </p>
 
-      <h3 className="help-modal__subsection-title">Media Limitations</h3>
+      <h3 className="help-modal__subsection-title">Rate Limits &amp; Retry Logic</h3>
       <p className="help-modal__p">
-        Images hosted on <code>i.redd.it</code> and <code>preview.redd.it</code> render inline.
-        Native Reddit videos (<code>v.redd.it</code>) are inaccessible without OAuth — the HLS
-        stream is gated behind authentication. Reddit365 shows the thumbnail (if available via RSS)
-        and provides a &ldquo;Watch video on Reddit&rdquo; link instead. Gallery posts only expose
-        the first image through the RSS feed. YouTube, Imgur, Streamable, and Giphy embeds are
-        detected and rendered as iframes where supported.
-      </p>
-
-      <h3 className="help-modal__subsection-title">Occasional Delays</h3>
-      <p className="help-modal__p">
-        Vercel serverless functions have a cold-start penalty when they haven&apos;t been invoked
-        recently. This can add 1–3 seconds to the first load. The proxy enforces a strict 30-second
-        upstream timeout to prevent hanging invocations. Once warmed up (or cache-hit), responses
-        are nearly instant.
+        A <code>429 Too Many Requests</code> from Reddit triggers automatic retries with exponential
+        backoff — the wait doubles each time, starting at 4 seconds. If Reddit sends a <code>Retry-After</code> header, that value overrides the calculated delay.
+        A live countdown is shown in the UI during each wait. After 5 failed attempts, the error is
+        surfaced and you can try again manually.
       </p>
     </div>
   );

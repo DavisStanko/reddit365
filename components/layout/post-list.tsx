@@ -46,39 +46,17 @@ export function PostList() {
   const {
     posts,
     isLoadingPosts,
-    hasMorePosts,
     postsError,
     postsRetryInfo,
-    loadMorePosts,
     refreshPosts,
   } = useRedditContext();
 
   const listRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll to top when feed/sort changes
   useEffect(() => {
     listRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [activeFeed, currentSort]);
-
-  // Infinite scroll via IntersectionObserver.
-  // Uses listRef as root so the sentinel only triggers when the user actually
-  // scrolls to the bottom inside the list container, not on initial render.
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    const list = listRef.current;
-    if (!sentinel || !list) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMorePosts && !isLoadingPosts) {
-          loadMorePosts();
-        }
-      },
-      { root: list, rootMargin: "200px", threshold: 0 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMorePosts, isLoadingPosts, loadMorePosts]);
 
   return (
     <div className="post-list">
@@ -200,10 +178,7 @@ export function PostList() {
           </div>
         )}
 
-        {/* Sentinel for infinite scroll — must be after loading indicator */}
-        <div ref={sentinelRef} style={{ height: 1 }} />
-
-        {!isLoadingPosts && !hasMorePosts && posts.length > 0 && (
+        {!isLoadingPosts && posts.length > 0 && (
           <div className="post-list__end">— End of feed —</div>
         )}
       </div>
