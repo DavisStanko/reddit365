@@ -109,8 +109,9 @@ export async function GET(request: NextRequest) {
     if (forceRefresh) {
       fetchOptions.cache = "no-store";
     } else {
-      // Use Next.js native Data Cache
-      fetchOptions.next = { revalidate: 86400 }; // 24 hours
+      // Use Next.js native Data Cache with indefinite TTL (FIFO).
+      // Manual refresh (forceRefresh=true) busts the cache via cache:"no-store".
+      fetchOptions.next = { revalidate: false };
     }
 
     const res = await fetch(targetUrl.toString(), fetchOptions);
@@ -126,7 +127,6 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/xml",
-        "Cache-Control": "public, max-age=86400",
         "Access-Control-Allow-Origin": "*",
       },
     });

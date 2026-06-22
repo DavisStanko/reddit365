@@ -97,10 +97,10 @@ function TabPerformance() {
         Reddit actively blocks third-party frontends like this one from using their API. The workaround? Appending <code>.rss</code> to the subreddit URL returns a valid RSS feed. This is the only read viable read path Reddit exposes.
       </p>
 
-      <h3 className="help-modal__subsection-title">Proxy & Caching</h3>
+      <h3 className="help-modal__subsection-title">Proxy &amp; Caching</h3>
       <p className="help-modal__p">
-        Because browsers block direct RSS fetches too (CORS), a server-side proxy fetches the feeds on your behalf. This also allows caching so Reddit is only contacted once per feed per day, no matter how many users load the same subreddit. Every RSS URL the proxy fetches is stored in Next.js&apos;s native Data Cache for{" "} <strong>24 hours</strong>. Most loads are served from cache and are nearly instant.
-        The <strong>refresh button</strong> bypasses the cache to fetch live data immediately.
+        Because browsers block direct RSS fetches too (CORS), a server-side proxy fetches the feeds on your behalf. This also allows caching — Reddit is only contacted once per unique feed URL, no matter how many users load the same subreddit. Every RSS response is stored indefinitely in Next.js&apos;s native Data Cache (FIFO eviction). Most loads are served from cache and are nearly instant.
+        The <strong>refresh button</strong> bypasses and replaces the cache entry with a live fetch from Reddit, so you always get current content on demand.
       </p>
 
       <h3 className="help-modal__subsection-title">RSS Feed Limits</h3>
