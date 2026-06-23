@@ -1614,6 +1614,16 @@ body {
   font-style: italic;
 }
 
+.help-modal__p--note {
+  color: var(--outlook-text-secondary);
+  font-style: italic;
+  background: #f5f5f5;
+  border-left: 3px solid var(--outlook-blue);
+  padding: 8px 12px;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 20px;
+}
+
 .help-modal__p code {
   font-family: "Consolas", "SF Mono", "Fira Code", monospace;
   font-size: 12px;

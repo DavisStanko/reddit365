@@ -8,7 +8,7 @@ type TabId = "using" | "performance" | "settings" | "feedback";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "using", label: "Using Reddit365" },
-  { id: "performance", label: "Performance Notes" },
+  { id: "performance", label: "How Reddit365 Works" },
   { id: "settings", label: "Settings" },
   { id: "feedback", label: "Feedback" },
 ];
@@ -90,46 +90,37 @@ function TabUsing() {
 function TabPerformance() {
   return (
     <div className="help-modal__tab-content">
-      <h2 className="help-modal__section-title">Performance &amp; Architecture Notes</h2>
-
-      <h3 className="help-modal__subsection-title">Why Not the Reddit API?</h3>
-      <p className="help-modal__p">
-        Reddit actively blocks third-party frontends like this one from using their API. The workaround? Appending <code>.rss</code> to the subreddit URL returns a valid RSS feed. This is the only read viable read path Reddit exposes.
+      <h2 className="help-modal__section-title">How Reddit365 Works</h2>
+      <p className="help-modal__p help-modal__p--note">
+        Reddit actively restricts third-party apps. Reddit365 works around these limits as best it can, but some quirks are unavoidable.
       </p>
 
-      <h3 className="help-modal__subsection-title">Proxy &amp; Caching</h3>
+      <h3 className="help-modal__subsection-title">Reddit Blocks API Access</h3>
       <p className="help-modal__p">
-        Because browsers block direct RSS fetches too (CORS), a server-side proxy fetches the feeds on your behalf. This also allows caching — Reddit is only contacted once per unique feed URL, no matter how many users load the same subreddit. Every RSS response is stored indefinitely in Next.js&apos;s native Data Cache (FIFO eviction). Most loads are served from cache and are nearly instant.
-        The <strong>refresh button</strong> bypasses and replaces the cache entry with a live fetch from Reddit, so you always get current content on demand.
+        Reddit&apos;s API is off-limits to apps like this. The workaround is appending <code>.rss</code> to a subreddit URL which returns an RSS feed. It&apos;s the only read path Reddit still exposes publicly.
       </p>
 
-      <h3 className="help-modal__subsection-title">RSS Feed Limits</h3>
+      <h3 className="help-modal__subsection-title">Requests are Proxied and Cached</h3>
       <p className="help-modal__p">
-        Reddit hard-caps RSS feeds at <strong>100 posts per request</strong>. There is no way to get
-        more. Reddit365 always requests the maximum in a single call — one large request is far
-        friendlier to Reddit&apos;s rate limits than multiple small paginated ones.
+        Browsers can&apos;t fetch RSS directly due to CORS restrictions, so Reddit365 uses a proxy server to fetch RSS feeds on your behalf. Posts and comments are cached so popular content loads instantly and Reddit isn't contacted at all. Use the refresh button to fetch fresh content.
       </p>
-      <p className="help-modal__p">
-        Comments have their own RSS feed, capped by Reddit at roughly <strong>50 replies</strong>{" "}
-        regardless of any <code>limit=</code> parameter — Reddit silently ignores it. Comments are
-        also returned as a flat list; the RSS format does not preserve thread nesting.
+      <p className="help-modal__p help-modal__p--note">
+        The proxy is shared. If Reddit throttles this server's IP, it affects everyone at once. The cache is the main shield against this, so please avoid using the refresh button unnecessarily.
       </p>
 
-      <h3 className="help-modal__subsection-title">Why Replies Need a Button</h3>
+      <h3 className="help-modal__subsection-title">Post and Comment Limits</h3>
       <p className="help-modal__p">
-        When a feed loads, all 100 posts arrive in one request and clicking a post costs nothing —
-        the data is already in memory. Comments are different: each &ldquo;Load replies&rdquo; click
-        is a brand new request to Reddit, and fetching 50 comments is roughly as expensive as the
-        initial 100-post fetch. Doing it automatically on every post click would burn through
-        Reddit&apos;s rate limits fast.
+        Reddit365 fetches 100 posts per subreddit and 50 comments per post. The RSS format doesn&apos;t carry nesting information, so Reddit365 flattens the comments into a single list.
       </p>
 
-      <h3 className="help-modal__subsection-title">Rate Limits &amp; Retry Logic</h3>
+      <h3 className="help-modal__subsection-title">Why Comments Load on Demand</h3>
       <p className="help-modal__p">
-        A <code>429 Too Many Requests</code> from Reddit triggers automatic retries with exponential
-        backoff — the wait doubles each time, starting at 4 seconds. If Reddit sends a <code>Retry-After</code> header, that value overrides the calculated delay.
-        A live countdown is shown in the UI during each wait. After 5 failed attempts, the error is
-        surfaced and you can try again manually.
+        Each &ldquo;load replies&rdquo; click is a request to Reddit. Fetching 50 comments counts the same toward Reddit's rate limit as loading 100 posts.
+      </p>
+
+      <h3 className="help-modal__subsection-title">Rate Limit Errors</h3>
+      <p className="help-modal__p">
+        A <code>429 Too Many Requests</code> from Reddit starts an automatic retry loop. The wait starts at 4 seconds and doubles with each attempt. After 5 failed attempts, the error surfaces and you can retry manually. All Reddit365 users are affected by this ratelimit.
       </p>
     </div>
   );
