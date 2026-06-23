@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { X } from "lucide-react";
 import { useAppContext } from "@/components/app-context";
+
+const R365 = () => <span style={{ color: "var(--outlook-blue)", fontWeight: 600 }}>Reddit365</span>;
+const RWeb = ({ children }: { children?: ReactNode }) => <span style={{ color: "#ff4500", fontWeight: 600 }}>{children || "Reddit"}</span>;
 
 type TabId = "using" | "performance" | "settings" | "feedback";
 
@@ -41,7 +44,7 @@ function TabUsing() {
     <div className="help-modal__tab-content">
       <h2 className="help-modal__section-title">Welcome to Reddit365</h2>
       <p className="help-modal__p">
-        Reddit365 is a UI clone of Microsoft Outlook that displays Reddit content
+        <R365 />{" "}is a UI clone of Microsoft Outlook that displays <RWeb /> content
         in place of emails. Click anywhere on the Outlook header to reopen this help panel later.
       </p>
 
@@ -80,7 +83,7 @@ function TabUsing() {
       <h3 className="help-modal__subsection-title">Loading Replies</h3>
       <p className="help-modal__p">
         Replies (comments) are not loaded automatically. Click the <strong>Load replies</strong>{" "}
-        button at the bottom of any open post to fetch them. Reddit&apos;s public feed caps replies
+        button at the bottom of any open post to fetch them. <RWeb>Reddit&apos;s</RWeb> public feed caps replies
         at 50 and only returns a flat list.
       </p>
     </div>
@@ -92,35 +95,35 @@ function TabPerformance() {
     <div className="help-modal__tab-content">
       <h2 className="help-modal__section-title">How Reddit365 Works</h2>
       <p className="help-modal__p help-modal__p--note">
-        Reddit actively restricts third-party apps. Reddit365 works around these limits as best it can, but some quirks are unavoidable.
+        <RWeb />{" "}actively restricts third-party apps. <R365 /> works around these limits as best it can, but some quirks are unavoidable.
       </p>
 
       <h3 className="help-modal__subsection-title">Reddit Blocks API Access</h3>
       <p className="help-modal__p">
-        Reddit&apos;s API is off-limits to apps like this. The workaround is appending <code>.rss</code> to a subreddit URL which returns an RSS feed. It&apos;s the only read path Reddit still exposes publicly.
+        <RWeb>Reddit&apos;s</RWeb> API is off-limits to apps like this. The workaround is appending <code>.rss</code> to a subreddit URL which returns an RSS feed. It&apos;s the only read path <RWeb /> still exposes publicly.
       </p>
 
       <h3 className="help-modal__subsection-title">Requests are Proxied and Cached</h3>
       <p className="help-modal__p">
-        Browsers can&apos;t fetch RSS directly due to CORS restrictions, so Reddit365 uses a proxy server to fetch RSS feeds on your behalf. Posts and comments are cached so popular content loads instantly and Reddit isn't contacted at all. Use the refresh button to fetch fresh content.
+        Browsers can&apos;t fetch RSS directly due to CORS restrictions, so <R365 /> uses a proxy server to fetch RSS feeds on your behalf. Posts and comments are cached so popular content loads instantly and <RWeb /> isn't contacted at all. Use the refresh button to fetch fresh content.
       </p>
       <p className="help-modal__p help-modal__p--note">
-        The proxy is shared. If Reddit throttles this server's IP, it affects everyone at once. The cache is the main shield against this, so please avoid using the refresh button unnecessarily.
+        The proxy is shared. If <RWeb /> throttles this server's IP, it affects everyone at once. The cache is the main shield against this, so please avoid using the refresh button unnecessarily.
       </p>
 
       <h3 className="help-modal__subsection-title">Post and Comment Limits</h3>
       <p className="help-modal__p">
-        Reddit365 fetches 100 posts per subreddit and 50 comments per post. The RSS format doesn&apos;t carry nesting information, so Reddit365 flattens the comments into a single list.
+        <R365 />{" "}fetches 100 posts per subreddit and 50 comments per post. The RSS format doesn&apos;t carry nesting information, so comments are displayed as a flat list.
       </p>
 
       <h3 className="help-modal__subsection-title">Why Comments Load on Demand</h3>
       <p className="help-modal__p">
-        Each &ldquo;load replies&rdquo; click is a request to Reddit. Fetching 50 comments counts the same toward Reddit's rate limit as loading 100 posts.
+        Each &ldquo;load replies&rdquo; click is a request to <RWeb />. Fetching 50 comments counts the same toward <RWeb>Reddit's</RWeb> rate limit as loading 100 posts.
       </p>
 
       <h3 className="help-modal__subsection-title">Rate Limit Errors</h3>
       <p className="help-modal__p">
-        A <code>429 Too Many Requests</code> from Reddit starts an automatic retry loop. The wait starts at 4 seconds and doubles with each attempt. After 5 failed attempts, the error surfaces and you can retry manually. All Reddit365 users are affected by this ratelimit.
+        A <code>429 Too Many Requests</code> from <RWeb /> starts an automatic retry loop. The wait starts at 4 seconds and doubles with each attempt. After 5 failed attempts, the error surfaces and you can retry manually. All <R365 /> users are affected by this ratelimit.
       </p>
     </div>
   );
