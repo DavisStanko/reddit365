@@ -98,7 +98,7 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
-| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 5 tabs: Using Reddit365, Performance Notes, Why This Frontend Is Limited, Settings, Feedback. Triggered on first visit and by clicking either header image. |
+| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 4 tabs: Using Reddit365, How Reddit365 Works, Settings, Feedback. Triggered on first visit and by clicking either header image. |
 | `lib/media-embed.tsx` | N/A | N/A | Modular media detection and rendering: `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, `MediaEmbedList` components |
 
 ---
@@ -113,9 +113,7 @@ When building UI, always use Outlook terminology in the interface, never Reddit 
 | Post feed | Message list / inbox |
 | Post | Message / email |
 | Comments | Replies |
-| Upvote/Downvote | Shown as vote controls in reading pane toolbar |
 | Hot / New / Top | Tabs in the post list header (like Focused / Other in Outlook) |
-| Post score | Displayed where unread count would be |
 | Saved posts | "Flagged" (conceptually) |
 | r/Home feed | "Inbox" |
 
@@ -128,7 +126,6 @@ The `Post` type currently has:
 - `body` (text content of post, stripped from RSS HTML)
 - `imageUrl?` — direct image URL (i.redd.it, preview.redd.it, or direct image link)
 - `thumbnailUrl?` — preview thumbnail for **video posts only** (may be blocked, hence separate from `imageUrl`)
-- `mediaUrl?` / `mediaType?` — for native video (`"video"`) posts served directly
 - `permalink?` — Reddit URL of the post
 - `externalUrl?` — external link for link posts (not image/video/embed)
 - `isGallery?` — Reddit gallery posts (multiple images, only first is accessible)
