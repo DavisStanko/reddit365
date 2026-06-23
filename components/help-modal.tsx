@@ -203,6 +203,10 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
     if (e.target === e.currentTarget) onClose();
   };
 
+  const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+  const prevTab = currentIndex > 0 ? TABS[currentIndex - 1] : null;
+  const nextTab = currentIndex < TABS.length - 1 ? TABS[currentIndex + 1] : null;
+
   return (
     <div
       className="help-modal__overlay"
@@ -256,6 +260,36 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
           {activeTab === "performance" && <TabPerformance />}
           {activeTab === "settings" && <TabSettings />}
           {activeTab === "feedback" && <TabFeedback />}
+        </div>
+
+        {/* Back / Next navigation */}
+        <div className="help-modal__nav-footer">
+          <div className="help-modal__nav-footer-left">
+            {prevTab && (
+              <button
+                className="help-modal__nav-btn help-modal__nav-btn--back"
+                onClick={() => setActiveTab(prevTab.id)}
+                type="button"
+                id={`help-nav-back-${prevTab.id}`}
+              >
+                <span className="help-modal__nav-arrow">&#8592;</span>
+                <span className="help-modal__nav-label">Back: {prevTab.label}</span>
+              </button>
+            )}
+          </div>
+          <div className="help-modal__nav-footer-right">
+            {nextTab && (
+              <button
+                className="help-modal__nav-btn help-modal__nav-btn--next"
+                onClick={() => setActiveTab(nextTab.id)}
+                type="button"
+                id={`help-nav-next-${nextTab.id}`}
+              >
+                <span className="help-modal__nav-label">Next: {nextTab.label}</span>
+                <span className="help-modal__nav-arrow">&#8594;</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
