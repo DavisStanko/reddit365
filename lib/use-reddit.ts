@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import {
   useCallback,
   useEffect,
@@ -49,6 +47,15 @@ export interface UseRedditReturn extends RedditState {
 // Fetch the maximum posts per request to minimise total Reddit API calls.
 // Reddit's RSS hard cap is 100.
 const PAGE_SIZE = 100;
+
+// Keep parsed post feeds in memory for the current browser session. This avoids
+// re-requesting the proxy when the user switches from one folder to another and
+// then back again; manual refresh still bypasses this map and replaces the entry.
+const postFeedCache = new Map<string, Post[]>();
+
+function postFeedCacheKey(feed: string, sort: SortMode): string {
+  return `${feed}:${sort}`;
+}
 
 function buildPostsUrl(
   feed: string,
@@ -175,8 +182,6 @@ async function fetchWithRetry(
     onRetry?.(info);
 
     await new Promise<void>((resolve, reject) => {
-      let interval: ReturnType<typeof setInterval>;
-
       const tick = () => {
         remainingSeconds--;
         if (remainingSeconds < 0) {
@@ -187,7 +192,7 @@ async function fetchWithRetry(
         }
       };
 
-      interval = setInterval(tick, 1000);
+      const interval = setInterval(tick, 1000);
 
       signal.addEventListener(
         "abort",
@@ -440,6 +445,20 @@ export function useReddit(
   // Effect: fetch posts when feed/sort changes
   // ------------------------------------------------------------------
   useEffect(() => {
+    const cacheKey = postFeedCacheKey(feed, sort);
+    const cachedPosts = postFeedCache.get(cacheKey);
+
+    if (cachedPosts) {
+      loadingPostsRef.current = false;
+      queueMicrotask(() => {
+        setPostsError(null);
+        setPostsRetryInfo(null);
+        setPosts(cachedPosts);
+        setIsLoadingPosts(false);
+      });
+      return;
+    }
+
     const controller = new AbortController();
 
     const doFetch = async () => {
@@ -473,6 +492,7 @@ export function useReddit(
         if (controller.signal.aborted) return;
 
         const { posts: newPosts } = parsePostFeed(text, feed);
+        postFeedCache.set(cacheKey, newPosts);
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
@@ -499,12 +519,14 @@ export function useReddit(
   // Effect: clear comments when selectedPost changes
   // ------------------------------------------------------------------
   useEffect(() => {
-    setComments([]);
-    setCommentsError(null);
-    setCommentsRetryInfo(null);
-    setHasFetchedComments(false);
     loadingCommentsRef.current = false;
-    setIsLoadingComments(false);
+    queueMicrotask(() => {
+      setComments([]);
+      setCommentsError(null);
+      setCommentsRetryInfo(null);
+      setHasFetchedComments(false);
+      setIsLoadingComments(false);
+    });
   }, [selectedPost?.id, selectedPost?.permalink]);
 
   // ------------------------------------------------------------------
@@ -544,6 +566,7 @@ export function useReddit(
         if (controller.signal.aborted) return;
 
         const { posts: newPosts } = parsePostFeed(text, feedRef.current);
+        postFeedCache.set(postFeedCacheKey(feedRef.current, sortRef.current), newPosts);
         setPosts(newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;

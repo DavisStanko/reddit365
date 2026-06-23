@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -10,6 +12,18 @@ interface RateLimitTracker {
   resetTime: number;
 }
 
+class UpstreamRedditError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`Reddit returned ${status}`);
+    this.name = "UpstreamRedditError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 const rateLimits = new Map<string, RateLimitTracker>();
 const RATE_LIMIT_MAX_REQUESTS = 120;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
@@ -19,6 +33,48 @@ const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 // ---------------------------------------------------------------------------
 const lastRefreshTimes = new Map<string, number>();
 const REFRESH_COOLDOWN_MS = 30 * 1000; // 30 seconds
+const UPSTREAM_TIMEOUT_MS = 30 * 1000;
+
+const REDDIT_REQUEST_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
+
+function cacheTagForUrl(url: string): string {
+  return `reddit-rss:${createHash("sha256").update(url).digest("hex")}`;
+}
+
+async function fetchRedditRss(url: string): Promise<string> {
+  const tag = cacheTagForUrl(url);
+  const res = await fetch(url, {
+    headers: REDDIT_REQUEST_HEADERS,
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    cache: "force-cache",
+    next: {
+      revalidate: false,
+      tags: [tag],
+    },
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    // Do not allow transient Reddit failures/rate limits to remain as the
+    // cached value for this RSS URL.
+    revalidateTag(tag, { expire: 0 });
+    throw new UpstreamRedditError(res.status, text);
+  }
+
+  return text;
+}
 
 export async function GET(request: NextRequest) {
   // 1. Rate Limiting Check
@@ -68,13 +124,14 @@ export async function GET(request: NextRequest) {
     if (!targetUrl.pathname.endsWith(".rss")) {
       return new NextResponse("Invalid url path", { status: 400 });
     }
-  } catch (err) {
+  } catch {
     return new NextResponse("Invalid url format", { status: 400 });
   }
 
+  const urlString = targetUrl.toString();
+
   // 2. Force-Refresh Cooldown Check
   if (forceRefresh) {
-    const urlString = targetUrl.toString();
     const lastRefresh = lastRefreshTimes.get(urlString);
     
     if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
@@ -82,43 +139,15 @@ export async function GET(request: NextRequest) {
       // Strip the forceRefresh flag to serve the Next.js cache instead
       forceRefresh = false;
     } else {
-      // Update the last refresh time
+      // Expire only this URL's cached RSS entry. The following cached read fetches
+      // fresh content and stores it back in the Vercel/Next.js Data Cache.
+      revalidateTag(cacheTagForUrl(urlString), { expire: 0 });
       lastRefreshTimes.set(urlString, now);
     }
   }
 
   try {
-    const fetchOptions: RequestInit = {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-      },
-    };
-
-    if (forceRefresh) {
-      fetchOptions.cache = "no-store";
-    } else {
-      // In Next.js 15+, fetch requests are uncached by default. 
-      // We must explicitly use cache: "force-cache" to use the Data Cache.
-      fetchOptions.cache = "force-cache";
-    }
-
-    const res = await fetch(targetUrl.toString(), fetchOptions);
-
-    const text = await res.text();
-
-    if (!res.ok) {
-      console.error("[Proxy] Reddit returned:", res.status, text.slice(0, 200));
-      return new NextResponse(text, { status: res.status });
-    }
+    const text = await fetchRedditRss(urlString);
 
     return new NextResponse(text, {
       status: 200,
@@ -128,6 +157,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    if (error instanceof UpstreamRedditError) {
+      console.error("[Proxy] Reddit returned:", error.status, error.body.slice(0, 200));
+      return new NextResponse(error.body, { status: error.status });
+    }
+
     console.error("[Proxy] Error:", error);
     return new NextResponse(error.message, { status: 500 });
   }
