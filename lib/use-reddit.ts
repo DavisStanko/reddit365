@@ -33,7 +33,6 @@ interface RedditState {
   comments: FlatComment[];
   isLoadingComments: boolean;
   hasFetchedComments: boolean;
-  hasMoreComments: boolean;
   commentsError: string | null;
   commentsRetryInfo: RetryInfo | null;
 }
@@ -420,7 +419,6 @@ export function useReddit(
   const [comments, setComments] = useState<FlatComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [hasFetchedComments, setHasFetchedComments] = useState(false);
-  const [hasMoreComments, setHasMoreComments] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentsRetryInfo, setCommentsRetryInfo] = useState<RetryInfo | null>(null);
 
@@ -502,7 +500,6 @@ export function useReddit(
   // ------------------------------------------------------------------
   useEffect(() => {
     setComments([]);
-    setHasMoreComments(false);
     setCommentsError(null);
     setCommentsRetryInfo(null);
     setHasFetchedComments(false);
@@ -572,7 +569,6 @@ export function useReddit(
     if (!permalink) return;
 
     setComments([]);
-    setHasMoreComments(true);
     setCommentsError(null);
     setCommentsRetryInfo(null);
     loadingCommentsRef.current = true;
@@ -637,12 +633,10 @@ export function useReddit(
             };
           });
 
-          setHasMoreComments(false);
           setComments(newComments);
           setHasFetchedComments(true);
         } else {
           setComments([]);
-          setHasMoreComments(false);
           setHasFetchedComments(true);
         }
       } catch (err: unknown) {
@@ -650,7 +644,6 @@ export function useReddit(
         console.warn("[useReddit] refresh comments failed:", err);
         setCommentsError(err instanceof Error ? err.message : String(err));
         setCommentsRetryInfo(null);
-        setHasMoreComments(false);
         setHasFetchedComments(true);
       } finally {
         if (!controller.signal.aborted) {
@@ -672,7 +665,6 @@ export function useReddit(
     comments,
     isLoadingComments,
     hasFetchedComments,
-    hasMoreComments,
     commentsError,
     commentsRetryInfo,
 

@@ -60,7 +60,6 @@ function CommentThread() {
     comments,
     isLoadingComments,
     hasFetchedComments,
-    hasMoreComments,
     commentsError,
     commentsRetryInfo,
     refreshComments,
@@ -165,7 +164,7 @@ function CommentThread() {
       ))}
 
 
-      {!isLoadingComments && !hasMoreComments && comments.length > 0 && (
+      {!isLoadingComments && hasFetchedComments && comments.length > 0 && (
         <div
           style={{
             color: "var(--outlook-text-tertiary)",
