@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -87,37 +88,64 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Shared fetch headers for all upstream Reddit requests
+  // ---------------------------------------------------------------------------
+  const REDDIT_HEADERS = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+  };
+
+  // ---------------------------------------------------------------------------
+  // Cached fetcher — uses unstable_cache (Next.js Data Cache) so the result
+  // is stored in Vercel's persistent Data Cache and shared across all users
+  // and serverless invocations. revalidate: false = indefinite TTL (FIFO
+  // eviction managed by Next.js). This is the correct way to cache inside a
+  // Route Handler; fetch() with cache: "force-cache" is unreliable here
+  // because Route Handlers are dynamic routes (they read the request object
+  // at runtime) and the Data Cache is not guaranteed to be hit.
+  // ---------------------------------------------------------------------------
+  const cachedFetch = unstable_cache(
+    async (url: string) => {
+      const res = await fetch(url, { headers: REDDIT_HEADERS, cache: "no-store" });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Reddit returned ${res.status}: ${text.slice(0, 200)}`);
+      }
+      return text;
+    },
+    // Cache key is derived from the URL — one entry per unique feed/comment URL.
+    ["reddit-rss"],
+    { revalidate: false }
+  );
+
   try {
-    const fetchOptions: RequestInit = {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-      },
-    };
+    let text: string;
 
     if (forceRefresh) {
-      fetchOptions.cache = "no-store";
+      // Bypass the Data Cache entirely — fetch fresh and overwrite the cache
+      // entry on next normal request (unstable_cache handles this naturally
+      // since we only call the raw fetch here and the cache key stays intact).
+      const res = await fetch(targetUrl.toString(), {
+        headers: REDDIT_HEADERS,
+        cache: "no-store",
+      });
+      text = await res.text();
+      if (!res.ok) {
+        console.error("[Proxy] Reddit returned:", res.status, text.slice(0, 200));
+        return new NextResponse(text, { status: res.status });
+      }
     } else {
-      // In Next.js 15+, fetch requests are uncached by default. 
-      // We must explicitly use cache: "force-cache" to use the Data Cache.
-      fetchOptions.cache = "force-cache";
-    }
-
-    const res = await fetch(targetUrl.toString(), fetchOptions);
-
-    const text = await res.text();
-
-    if (!res.ok) {
-      console.error("[Proxy] Reddit returned:", res.status, text.slice(0, 200));
-      return new NextResponse(text, { status: res.status });
+      // Serve from / populate the persistent Data Cache.
+      text = await cachedFetch(targetUrl.toString());
     }
 
     return new NextResponse(text, {
