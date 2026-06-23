@@ -851,6 +851,9 @@ body {
   height: 20px;
   background: #c4c4c4;
   border-radius: 10px;
+  border: none;
+  padding: 0;
+  overflow: hidden;
   cursor: pointer;
   transition: background 200ms ease;
   flex-shrink: 0;
