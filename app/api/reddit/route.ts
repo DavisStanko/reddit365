@@ -100,16 +100,15 @@ export async function GET(request: NextRequest) {
         "Sec-Fetch-Site": "none",
         "Sec-Fetch-User": "?1",
         "Upgrade-Insecure-Requests": "1",
-        "Cache-Control": "max-age=0",
       },
     };
 
     if (forceRefresh) {
       fetchOptions.cache = "no-store";
     } else {
-      // Use Next.js native Data Cache with indefinite TTL (FIFO).
-      // Manual refresh (forceRefresh=true) busts the cache via cache:"no-store".
-      fetchOptions.next = { revalidate: false };
+      // In Next.js 15+, fetch requests are uncached by default. 
+      // We must explicitly use cache: "force-cache" to use the Data Cache.
+      fetchOptions.cache = "force-cache";
     }
 
     const res = await fetch(targetUrl.toString(), fetchOptions);
