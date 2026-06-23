@@ -103,10 +103,10 @@ function TabPerformance() {
 
       <h3 className="help-modal__subsection-title">Requests are Proxied and Cached</h3>
       <p className="help-modal__p">
-        Browsers can&apos;t fetch RSS directly due to CORS restrictions, so <R365 /> uses a proxy server to fetch RSS feeds on your behalf. Posts and comments are cached so popular content loads instantly and <RWeb /> isn't contacted at all. Use the refresh button to fetch fresh content.
+        Browsers can&apos;t fetch RSS directly due to CORS restrictions, so <R365 /> uses a proxy server to fetch RSS feeds on your behalf. Posts and comments are cached so popular content loads instantly and <RWeb /> isn&apos;t contacted at all. Use the refresh button to fetch fresh content.
       </p>
       <p className="help-modal__p help-modal__p--note">
-        The proxy is shared. If <RWeb /> throttles this server's IP, it affects everyone at once. The cache is the main shield against this, so please avoid using the refresh button unnecessarily.
+        The proxy is shared. If <RWeb /> throttles this server&apos;s IP, it affects everyone at once. The cache is the main shield against this, so please avoid using the refresh button unnecessarily.
       </p>
 
       <h3 className="help-modal__subsection-title">Post and Comment Limits</h3>
@@ -116,7 +116,7 @@ function TabPerformance() {
 
       <h3 className="help-modal__subsection-title">Why Comments Load on Demand</h3>
       <p className="help-modal__p">
-        Each &ldquo;load replies&rdquo; click is a request to <RWeb />. Fetching 50 comments counts the same toward <RWeb>Reddit's</RWeb> rate limit as loading 100 posts.
+        Each &ldquo;load replies&rdquo; click is a request to <RWeb />. Fetching 50 comments counts the same toward <RWeb>Reddit&apos;s</RWeb> rate limit as loading 100 posts.
       </p>
 
       <h3 className="help-modal__subsection-title">Rate Limit Errors</h3>

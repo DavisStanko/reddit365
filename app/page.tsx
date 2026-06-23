@@ -23,7 +23,7 @@ function HomeContent() {
   useEffect(() => {
     try {
       if (!localStorage.getItem("reddit365_helpSeen")) {
-        setShowHelp(true);
+        queueMicrotask(() => setShowHelp(true));
         localStorage.setItem("reddit365_helpSeen", "1");
       }
     } catch {
