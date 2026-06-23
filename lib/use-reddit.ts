@@ -214,7 +214,7 @@ function parsePostFeed(
   fallbackFeed: string,
 ): { posts: Post[] } {
   if (!text.trim().startsWith("<")) {
-    return { posts: [], nextAfter: null };
+    return { posts: [] };
   }
 
   const parser = new DOMParser();
