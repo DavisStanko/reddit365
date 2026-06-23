@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import {
   useCallback,
   useEffect,
@@ -175,8 +173,6 @@ async function fetchWithRetry(
     onRetry?.(info);
 
     await new Promise<void>((resolve, reject) => {
-      let interval: ReturnType<typeof setInterval>;
-
       const tick = () => {
         remainingSeconds--;
         if (remainingSeconds < 0) {
@@ -187,7 +183,7 @@ async function fetchWithRetry(
         }
       };
 
-      interval = setInterval(tick, 1000);
+      const interval = setInterval(tick, 1000);
 
       signal.addEventListener(
         "abort",
@@ -499,12 +495,14 @@ export function useReddit(
   // Effect: clear comments when selectedPost changes
   // ------------------------------------------------------------------
   useEffect(() => {
-    setComments([]);
-    setCommentsError(null);
-    setCommentsRetryInfo(null);
-    setHasFetchedComments(false);
     loadingCommentsRef.current = false;
-    setIsLoadingComments(false);
+    queueMicrotask(() => {
+      setComments([]);
+      setCommentsError(null);
+      setCommentsRetryInfo(null);
+      setHasFetchedComments(false);
+      setIsLoadingComments(false);
+    });
   }, [selectedPost?.id, selectedPost?.permalink]);
 
   // ------------------------------------------------------------------
