@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -53,10 +53,16 @@ function cacheTagForUrl(url: string): string {
 }
 
 async function fetchRedditRss(url: string): Promise<string> {
+  const tag = cacheTagForUrl(url);
+
   const res = await fetch(url, {
     headers: REDDIT_REQUEST_HEADERS,
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    cache: "no-store",
+    cache: "force-cache",
+    next: {
+      revalidate: false,
+      tags: [tag],
+    },
   });
 
   const text = await res.text();
@@ -66,17 +72,6 @@ async function fetchRedditRss(url: string): Promise<string> {
   }
 
   return text;
-}
-
-function getCachedRedditRss(url: string) {
-  return unstable_cache(
-    fetchRedditRss,
-    ["reddit-rss", url],
-    {
-      revalidate: false,
-      tags: [cacheTagForUrl(url)],
-    },
-  )(url);
 }
 
 export async function GET(request: NextRequest) {
@@ -142,15 +137,16 @@ export async function GET(request: NextRequest) {
       // Strip the forceRefresh flag to serve the Next.js cache instead
       forceRefresh = false;
     } else {
-      // Expire only this URL's cached RSS entry. The following cached read fetches
-      // fresh content and stores it back in the Vercel/Next.js Data Cache.
+      // Expire only this URL's cached RSS entry. The following fetch has
+      // cache: "force-cache", so it fetches fresh content and stores the
+      // replacement in the shared Next.js/Vercel Data Cache.
       revalidateTag(cacheTagForUrl(urlString), { expire: 0 });
       lastRefreshTimes.set(urlString, now);
     }
   }
 
   try {
-    const text = await getCachedRedditRss(urlString);
+    const text = await fetchRedditRss(urlString);
 
     return new NextResponse(text, {
       status: 200,
