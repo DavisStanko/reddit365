@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export const dynamic = "force-dynamic";
-
 // ---------------------------------------------------------------------------
 // In-Memory Rate Limiter
 // ---------------------------------------------------------------------------

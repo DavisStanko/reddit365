@@ -50,8 +50,7 @@ function TabUsing() {
 
       <h3 className="help-modal__subsection-title">Navigating Subreddits</h3>
       <p className="help-modal__p">
-        The left sidebar lists your subscribed subreddits. Click any
-        subreddit to load its posts.
+        The left sidebar lists your subscribed subreddits. Click on a subreddit to load its posts.
       </p>
       <ul className="help-modal__list">
         <li>
