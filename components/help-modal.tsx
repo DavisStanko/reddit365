@@ -76,7 +76,6 @@ function TabUsing() {
       <h3 className="help-modal__subsection-title">Opening Posts</h3>
       <p className="help-modal__p">
         Click any post to open it in the reading pane.
-        inline.
       </p>
 
       <h3 className="help-modal__subsection-title">Loading Replies</h3>
@@ -217,8 +216,10 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
       <div className="help-modal__dialog" role="document">
         {/* Header */}
         <div className="help-modal__header">
-          <div className="help-modal__header-icon" aria-hidden="true">?</div>
-          <h1 className="help-modal__title">Reddit365 Help &amp; Settings</h1>
+          <div className="help-modal__header-title-group">
+            <h1 className="help-modal__title">Reddit365 Help &amp; Settings</h1>
+            <div className="help-modal__header-icon" aria-hidden="true">?</div>
+          </div>
           <button
             className="help-modal__close"
             onClick={onClose}

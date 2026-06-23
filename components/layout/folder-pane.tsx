@@ -92,7 +92,6 @@ interface FolderGroupProps {
   activeId: string;
   onSelect: (id: string) => void;
   onRemove?: (id: string) => void;
-  defaultExpanded?: boolean;
   sortable?: boolean;
 }
 

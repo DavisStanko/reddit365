@@ -11,7 +11,7 @@ const SORT_OPTIONS: SortMode[] = ["hot", "new", "top"];
 const AVATAR_COLORS = [
   "#d13438", // red
   "#ca5010", // orange
-  "#fce100", // yellow (might be hard to read white text on, let's use a darker yellow/gold or skip it. Outlook uses specific colors. Let's stick to darker ones)
+  "#fce100", // yellow
   "#0b6a0f", // green
   "#00b7c3", // cyan
   "#0078d4", // blue

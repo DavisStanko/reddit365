@@ -31,7 +31,6 @@ interface RedditState {
   postsRetryInfo: RetryInfo | null;
 
   comments: FlatComment[];
-  commentsAfter: string | null;
   isLoadingComments: boolean;
   hasFetchedComments: boolean;
   hasMoreComments: boolean;
@@ -55,7 +54,6 @@ const PAGE_SIZE = 100;
 function buildPostsUrl(
   feed: string,
   sort: SortMode,
-  after: string | null,
   forceRefresh: boolean = false,
 ): string {
   let basePath: string;
@@ -73,9 +71,6 @@ function buildPostsUrl(
   if (sort === "top") {
     targetUrl += "&t=all";
   }
-  if (after) {
-    targetUrl += `&after=${after}`;
-  }
 
   const baseUrl =
     typeof window !== "undefined"
@@ -89,7 +84,7 @@ function buildPostsUrl(
   return url.toString();
 }
 
-function buildCommentsUrl(permalink: string, after: string | null, forceRefresh: boolean = false): string {
+function buildCommentsUrl(permalink: string, forceRefresh: boolean = false): string {
   let targetUrl = permalink;
   if (permalink.startsWith("http")) {
     try {
@@ -109,7 +104,6 @@ function buildCommentsUrl(permalink: string, after: string | null, forceRefresh:
     const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
     targetUrl = `https://old.reddit.com${clean}.rss?limit=50&sort=confidence`;
   }
-  if (after) targetUrl += `&after=${after}`;
 
   const baseUrl =
     typeof window !== "undefined"
@@ -214,13 +208,12 @@ async function fetchWithRetry(
 
 /**
  * Parse an Atom/RSS post feed returned by old.reddit.com.
- * Returns parsed posts and the `after` cursor for the next page
- * (a Reddit fullname like `t3_xxxxxx`), or null if at the end of the feed.
+ * Returns the parsed array of posts.
  */
 function parsePostFeed(
   text: string,
   fallbackFeed: string,
-): { posts: Post[]; nextAfter: string | null } {
+): { posts: Post[] } {
   if (!text.trim().startsWith("<")) {
     return { posts: [], nextAfter: null };
   }
@@ -392,21 +385,7 @@ function parsePostFeed(
     };
   });
 
-  // Build the `after` cursor from the last entry's Reddit fullname.
-  // Only set when we got a full page — fewer entries means end of feed.
-  let nextAfter: string | null = null;
-  if (entries.length >= PAGE_SIZE) {
-    const lastEntry = entries[entries.length - 1];
-    const rawId = lastEntry.querySelector("id")?.textContent || "";
-    if (rawId.startsWith("t3_")) {
-      nextAfter = rawId.trim();
-    } else {
-      const m = rawId.match(/\/comments\/([a-z0-9]+)\//i);
-      if (m) nextAfter = `t3_${m[1]}`;
-    }
-  }
-
-  return { posts, nextAfter };
+  return { posts };
 }
 
 // ---------------------------------------------------------------------------
@@ -439,7 +418,6 @@ export function useReddit(
 
   // ---- Comments state ----
   const [comments, setComments] = useState<FlatComment[]>([]);
-  const [commentsAfter, setCommentsAfter] = useState<string | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [hasFetchedComments, setHasFetchedComments] = useState(false);
   const [hasMoreComments, setHasMoreComments] = useState(true);
@@ -448,7 +426,6 @@ export function useReddit(
 
   // ---- Refs to avoid stale closures ----
   const loadingPostsRef = useRef(false);
-  const commentsAfterRef = useRef<string | null>(null);
   const loadingCommentsRef = useRef(false);
 
   const feedRef = useRef(feed);
@@ -475,7 +452,7 @@ export function useReddit(
       setIsLoadingPosts(true);
 
       try {
-        const url = buildPostsUrl(feed, sort, null);
+        const url = buildPostsUrl(feed, sort);
         const res = await fetchWithRetry(
           url,
           controller.signal,
@@ -525,12 +502,10 @@ export function useReddit(
   // ------------------------------------------------------------------
   useEffect(() => {
     setComments([]);
-    setCommentsAfter(null);
     setHasMoreComments(false);
     setCommentsError(null);
     setCommentsRetryInfo(null);
     setHasFetchedComments(false);
-    commentsAfterRef.current = null;
     loadingCommentsRef.current = false;
     setIsLoadingComments(false);
   }, [selectedPost?.id, selectedPost?.permalink]);
@@ -549,7 +524,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildPostsUrl(feedRef.current, sortRef.current, null, true);
+        const url = buildPostsUrl(feedRef.current, sortRef.current, true);
         const res = await fetchWithRetry(
           url,
           controller.signal,
@@ -597,11 +572,9 @@ export function useReddit(
     if (!permalink) return;
 
     setComments([]);
-    setCommentsAfter(null);
     setHasMoreComments(true);
     setCommentsError(null);
     setCommentsRetryInfo(null);
-    commentsAfterRef.current = null;
     loadingCommentsRef.current = true;
 
     const controller = new AbortController();
@@ -609,7 +582,7 @@ export function useReddit(
 
     const doFetch = async () => {
       try {
-        const url = buildCommentsUrl(permalink, null, true);
+        const url = buildCommentsUrl(permalink, true);
         const res = await fetchWithRetry(
           url,
           controller.signal,
@@ -664,8 +637,6 @@ export function useReddit(
             };
           });
 
-          commentsAfterRef.current = null;
-          setCommentsAfter(null);
           setHasMoreComments(false);
           setComments(newComments);
           setHasFetchedComments(true);
@@ -699,7 +670,6 @@ export function useReddit(
     postsRetryInfo,
 
     comments,
-    commentsAfter,
     isLoadingComments,
     hasFetchedComments,
     hasMoreComments,

@@ -26,10 +26,6 @@ export function RedditProvider({ children }: { children: ReactNode }) {
     selectedPost,
   );
 
-  const { posts, isLoadingPosts } = reddit;
-
-
-
   return (
     <RedditContext.Provider value={reddit}>
       {children}

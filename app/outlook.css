@@ -946,74 +946,11 @@ body {
   overflow-y: auto;
 }
 
-/* Toolbar */
-
-.reading-view__toolbar {
-  display: flex;
-  align-items: center;
-  padding: 6px 20px;
-  border-bottom: 1px solid var(--outlook-border);
-  flex-shrink: 0;
-  background: #ffffff;
-}
-
-.reading-view__toolbar-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.reading-view__toolbar-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--outlook-text-secondary);
-  cursor: pointer;
-  border-radius: 4px;
-  font-family: inherit;
-  transition:
-    background 100ms ease,
-    color 100ms ease;
-}
-
-.reading-view__toolbar-btn:hover {
-  background: #ebebeb;
-  color: var(--outlook-text-primary);
-}
 
 /* Header */
 
 .reading-view__header {
   padding: 24px 32px 0;
-}
-
-.reading-view__meta-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.reading-view__subreddit {
-  font-weight: 700;
-  color: var(--outlook-blue);
-}
-
-.reading-view__author {
-  color: var(--outlook-text-secondary);
-}
-
-.reading-view__dot {
-  color: var(--outlook-text-tertiary);
-}
-
-.reading-view__time {
-  color: var(--outlook-text-tertiary);
 }
 
 .reading-view__title {
@@ -1024,51 +961,6 @@ body {
   margin: 0;
 }
 
-/* Vote bar */
-
-.reading-view__vote-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 32px 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.reading-view__vote-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--outlook-text-tertiary);
-  cursor: pointer;
-  border-radius: 4px;
-  transition:
-    background 100ms ease,
-    color 100ms ease;
-}
-
-.reading-view__vote-btn:hover {
-  background: #f0f0f0;
-  color: var(--outlook-blue);
-}
-
-.reading-view__score {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--outlook-blue);
-}
-
-.reading-view__comment-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 12px;
-  font-size: 12px;
-  color: var(--outlook-text-secondary);
-}
 
 /* Media */
 
@@ -1140,19 +1032,6 @@ body {
 /* ========================================================================
    POST LIST — FEED NAME & INFINITE SCROLL ELEMENTS
    ======================================================================== */
-
-.post-list__feed-name {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--outlook-text-tertiary);
-  margin-bottom: 4px;
-}
-
-.post-list__sentinel {
-  height: 1px;
-}
 
 .post-list__loading {
   padding: 12px 16px;
@@ -1346,29 +1225,6 @@ body {
   color: #d92f2f;
 }
 
-/* Load More Button */
-.post-list__load-more-wrapper {
-  padding: 16px;
-  text-align: center;
-}
-
-.post-list__load-more-btn {
-  padding: 6px 16px;
-  background: var(--outlook-blue);
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 120ms ease;
-  font-family: inherit;
-}
-
-.post-list__load-more-btn:hover {
-  background: var(--outlook-blue-hover);
-}
-
 /* ========================================================================
    MOBILE WARNING BANNER
    ======================================================================== */
@@ -1470,11 +1326,12 @@ body {
 .help-modal__header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--outlook-border);
   flex-shrink: 0;
   background: var(--outlook-blue);
+  position: relative;
 }
 
 .help-modal__header-icon {
@@ -1492,12 +1349,18 @@ body {
 }
 
 .help-modal__title {
-  flex: 1;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
   font-family: inherit;
+  text-align: center;
+}
+
+.help-modal__header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .help-modal__close {
@@ -1512,7 +1375,10 @@ body {
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
-  flex-shrink: 0;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .help-modal__close:hover {

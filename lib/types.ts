@@ -7,8 +7,6 @@ export interface Post {
   body: string;
   imageUrl?: string;
   thumbnailUrl?: string; // preview thumbnail for video posts (may not load)
-  mediaUrl?: string;
-  mediaType?: "image" | "video";
   permalink?: string;
   externalUrl?: string;
   isGallery?: boolean;
@@ -23,7 +21,6 @@ export interface FlatComment {
   time: string;
   body: string;
   depth: number;
-  score?: number;
   /** Embeddable media extracted from the comment HTML (giphy, imgur, images, etc.) */
   mediaUrls?: import("./media-embed").DetectedMedia[];
 }

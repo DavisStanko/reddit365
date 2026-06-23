@@ -203,8 +203,7 @@ function CommentThread() {
 export function ContentPane() {
   const { selectedPost: post, mediaPostsEnabled } = useAppContext();
   const readingViewRef = useRef<HTMLDivElement | null>(null);
-  const mediaUrl = post?.mediaUrl ?? post?.imageUrl;
-  const mediaType = post?.mediaType ?? "image";
+  const mediaUrl = post?.imageUrl;
 
   if (!post) {
     return (
@@ -291,27 +290,16 @@ export function ContentPane() {
           {hasMedia && (
             <div className="reading-view__media" style={{ padding: "0 24px" }}>
               {mediaUrl && (
-                mediaType === "video" ? (
-                  <video
-                    className="reading-view__video"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={mediaUrl}
-                    style={{ display: "block" }}
-                  />
-                ) : (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={mediaUrl}
-                    alt=""
-                    className="reading-view__image"
-                    style={{ display: "block" }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                )
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={mediaUrl}
+                  alt=""
+                  className="reading-view__image"
+                  style={{ display: "block" }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
               )}
               {post.isGallery && (
                 <div style={{ marginTop: "16px", fontSize: "13px", color: "var(--outlook-text-tertiary)", textAlign: "center", lineHeight: "1.4" }}>
