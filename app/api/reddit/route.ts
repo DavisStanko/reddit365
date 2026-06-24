@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { unstable_cache } from "next/cache";
+import { revalidateTag } from "next/cache";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -20,6 +20,60 @@ const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 // ---------------------------------------------------------------------------
 const lastRefreshTimes = new Map<string, number>();
 const REFRESH_COOLDOWN_MS = 30 * 1000; // 30 seconds
+
+// ---------------------------------------------------------------------------
+// Shared fetch headers for all upstream Reddit requests
+// ---------------------------------------------------------------------------
+const REDDIT_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
+
+// ---------------------------------------------------------------------------
+// Cached fetcher — uses "use cache: remote" so the result is stored in
+// Vercel's persistent remote Data Cache and shared across all users and
+// serverless invocations. This replaces the deprecated unstable_cache
+// approach which only stored in ephemeral in-memory cache that was destroyed
+// between serverless invocations.
+//
+// cacheLife("max") = indefinite TTL (revalidate: 30 days, expire: 1 year).
+// cacheTag() per URL enables targeted invalidation via revalidateTag().
+// ---------------------------------------------------------------------------
+async function fetchRedditRSS(url: string): Promise<string> {
+  "use cache: remote";
+
+  const { cacheLife, cacheTag } = await import("next/cache");
+  cacheLife("max");
+  cacheTag(cacheTagForUrl(url));
+
+  const res = await fetch(url, { headers: REDDIT_HEADERS, cache: "no-store" });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Reddit returned ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return text;
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic cache tag from a Reddit RSS URL.
+// Tags are limited to 256 chars, so we hash long URLs.
+// ---------------------------------------------------------------------------
+function cacheTagForUrl(url: string): string {
+  // Simple deterministic hash: prefix + condensed URL
+  const condensed = url
+    .replace(/^https?:\/\//, "")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .slice(0, 200);
+  return `rss_${condensed}`;
+}
 
 export async function GET(request: NextRequest) {
   // 1. Rate Limiting Check
@@ -80,7 +134,7 @@ export async function GET(request: NextRequest) {
     
     if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
       console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      // Strip the forceRefresh flag to serve the Next.js cache instead
+      // Strip the forceRefresh flag to serve the cache instead
       forceRefresh = false;
     } else {
       // Update the last refresh time
@@ -88,65 +142,19 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Shared fetch headers for all upstream Reddit requests
-  // ---------------------------------------------------------------------------
-  const REDDIT_HEADERS = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-  };
-
-  // ---------------------------------------------------------------------------
-  // Cached fetcher — uses unstable_cache (Next.js Data Cache) so the result
-  // is stored in Vercel's persistent Data Cache and shared across all users
-  // and serverless invocations. revalidate: false = indefinite TTL (FIFO
-  // eviction managed by Next.js). This is the correct way to cache inside a
-  // Route Handler; fetch() with cache: "force-cache" is unreliable here
-  // because Route Handlers are dynamic routes (they read the request object
-  // at runtime) and the Data Cache is not guaranteed to be hit.
-  // ---------------------------------------------------------------------------
-  const cachedFetch = unstable_cache(
-    async (url: string) => {
-      const res = await fetch(url, { headers: REDDIT_HEADERS, cache: "no-store" });
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(`Reddit returned ${res.status}: ${text.slice(0, 200)}`);
-      }
-      return text;
-    },
-    // Cache key is derived from the URL — one entry per unique feed/comment URL.
-    ["reddit-rss"],
-    { revalidate: false }
-  );
-
   try {
-    let text: string;
-
     if (forceRefresh) {
-      // Bypass the Data Cache entirely — fetch fresh and overwrite the cache
-      // entry on next normal request (unstable_cache handles this naturally
-      // since we only call the raw fetch here and the cache key stays intact).
-      const res = await fetch(targetUrl.toString(), {
-        headers: REDDIT_HEADERS,
-        cache: "no-store",
-      });
-      text = await res.text();
-      if (!res.ok) {
-        console.error("[Proxy] Reddit returned:", res.status, text.slice(0, 200));
-        return new NextResponse(text, { status: res.status });
-      }
-    } else {
-      // Serve from / populate the persistent Data Cache.
-      text = await cachedFetch(targetUrl.toString());
+      // Invalidate the remote cache entry for this URL, then re-fetch.
+      // revalidateTag with { expire: 0 } immediately expires the entry so
+      // the next call to fetchRedditRSS will miss cache and fetch fresh.
+      const tag = cacheTagForUrl(targetUrl.toString());
+      revalidateTag(tag, { expire: 0 });
     }
+
+    // Serve from / populate the persistent remote Data Cache.
+    // If forceRefresh just expired the tag above, this call will miss
+    // the cache and fetch fresh data from Reddit, then cache it.
+    const text = await fetchRedditRSS(targetUrl.toString());
 
     return new NextResponse(text, {
       status: 200,
