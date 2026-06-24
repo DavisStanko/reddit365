@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { cacheLife, cacheTag, revalidateTag } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -53,44 +53,45 @@ function cacheTagForUrl(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Cached RSS fetcher — uses 'use cache: remote' (Next.js 16 Cache Components).
+// Cached RSS fetcher — uses unstable_cache (Next.js Data Cache).
 //
-// WHY 'use cache: remote' and not fetch() + force-cache:
-//   fetch() with cache: "force-cache" in a Route Handler uses an in-process
+// WHY unstable_cache and not fetch() + force-cache, or 'use cache: remote':
+//
+//   fetch() + cache: "force-cache" in a Route Handler uses an in-process
 //   memory cache. In serverless environments (Vercel), each invocation runs in
-//   an isolated container whose memory is destroyed after the request. This
-//   means cache: "force-cache" provides zero persistence between requests —
-//   effectively no cache at all.
+//   an isolated container destroyed after the request — effectively no cache.
 //
-//   'use cache: remote' routes through Vercel's remote cache handler (their
-//   persistent Data Cache KV store), which IS shared across all serverless
-//   instances and persists across invocations. This requires cacheComponents:
-//   true in next.config.ts — without it, use cache directives are silently
-//   ignored.
+//   'use cache: remote' requires cacheComponents: true in next.config.ts.
+//   That flag also enables PPR (Partial Prerendering) globally, which breaks
+//   any existing Server Component not designed for it — a whole-app breaking
+//   change for just an API proxy tweak.
 //
-// cacheLife({ expire: 0 }): no time-based expiry — FIFO eviction only.
-// cacheTag(tag): per-URL tag, enabling targeted invalidation on force-refresh.
+//   unstable_cache writes to the same persistent Vercel Data Cache KV store,
+//   works in any context (including Route Handlers) without touching PPR or
+//   page rendering behavior. The result is shared across all serverless
+//   instances and persists across invocations.
+//
+// revalidate: false = indefinite TTL (FIFO eviction only).
+// tags: [tag]       = per-URL tag, enabling revalidateTag() for force-refresh.
 // ---------------------------------------------------------------------------
-async function fetchRedditRss(url: string): Promise<string> {
-  "use cache: remote";
-
+function makeCachedFetcher(url: string) {
   const tag = cacheTagForUrl(url);
-  cacheTag(tag);
-  cacheLife({ expire: 0 }); // indefinite — no time-based expiry
-
-  const res = await fetch(url, {
-    headers: REDDIT_REQUEST_HEADERS,
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    cache: "no-store", // always fetch from Reddit; caching is handled by 'use cache: remote'
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new UpstreamRedditError(res.status, text);
-  }
-
-  return text;
+  return unstable_cache(
+    async () => {
+      const res = await fetch(url, {
+        headers: REDDIT_REQUEST_HEADERS,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        cache: "no-store",
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new UpstreamRedditError(res.status, text);
+      }
+      return text;
+    },
+    [tag],             // cache key — unique per URL
+    { revalidate: false, tags: [tag] } // indefinite TTL, per-URL invalidation
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -164,7 +165,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const text = await fetchRedditRss(urlString);
+    const text = await makeCachedFetcher(urlString)();
 
     return new NextResponse(text, {
       status: 200,
