@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { revalidateTag } from "next/cache";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -52,17 +52,36 @@ function cacheTagForUrl(url: string): string {
   return `reddit-rss:${createHash("sha256").update(url).digest("hex")}`;
 }
 
+// ---------------------------------------------------------------------------
+// Cached RSS fetcher — uses 'use cache: remote' (Next.js 16 Cache Components).
+//
+// WHY 'use cache: remote' and not fetch() + force-cache:
+//   fetch() with cache: "force-cache" in a Route Handler uses an in-process
+//   memory cache. In serverless environments (Vercel), each invocation runs in
+//   an isolated container whose memory is destroyed after the request. This
+//   means cache: "force-cache" provides zero persistence between requests —
+//   effectively no cache at all.
+//
+//   'use cache: remote' routes through Vercel's remote cache handler (their
+//   persistent Data Cache KV store), which IS shared across all serverless
+//   instances and persists across invocations. This requires cacheComponents:
+//   true in next.config.ts — without it, use cache directives are silently
+//   ignored.
+//
+// cacheLife({ expire: 0 }): no time-based expiry — FIFO eviction only.
+// cacheTag(tag): per-URL tag, enabling targeted invalidation on force-refresh.
+// ---------------------------------------------------------------------------
 async function fetchRedditRss(url: string): Promise<string> {
+  "use cache: remote";
+
   const tag = cacheTagForUrl(url);
+  cacheTag(tag);
+  cacheLife({ expire: 0 }); // indefinite — no time-based expiry
 
   const res = await fetch(url, {
     headers: REDDIT_REQUEST_HEADERS,
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    cache: "force-cache",
-    next: {
-      revalidate: false,
-      tags: [tag],
-    },
+    cache: "no-store", // always fetch from Reddit; caching is handled by 'use cache: remote'
   });
 
   const text = await res.text();
@@ -134,12 +153,11 @@ export async function GET(request: NextRequest) {
     
     if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
       console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      // Strip the forceRefresh flag to serve the Next.js cache instead
+      // Strip the forceRefresh flag to serve the remote cache instead
       forceRefresh = false;
     } else {
-      // Expire only this URL's cached RSS entry. The following fetch has
-      // cache: "force-cache", so it fetches fresh content and stores the
-      // replacement in the shared Next.js/Vercel Data Cache.
+      // Immediately expire this URL's remote cache entry so the next
+      // fetchRedditRss call fetches fresh data and repopulates the cache.
       revalidateTag(cacheTagForUrl(urlString), { expire: 0 });
       lastRefreshTimes.set(urlString, now);
     }
@@ -165,3 +183,4 @@ export async function GET(request: NextRequest) {
     return new NextResponse(error.message, { status: 500 });
   }
 }
+
