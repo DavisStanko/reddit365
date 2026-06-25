@@ -8,46 +8,48 @@ Reddit365 relies on Reddit's unauthenticated RSS feeds (`.rss`) to bypass CORS a
 
 The requirements for caching are:
 1. **Server-Side Only**: Feeds must be fetched and cached by the Next.js API proxy (`app/api/reddit/route.ts`).
-2. **Persistent across invocations**: Because Vercel uses a serverless architecture, memory is isolated per lambda container and destroyed after inactivity. In-memory caches expire too quickly, resulting in frequent cache misses and rate limits when switching feeds.
+2. **Persistent across invocations**: Because Vercel uses a serverless architecture, memory is isolated per lambda container and destroyed after inactivity. In-memory caches alone expire too quickly, resulting in frequent cache misses and rate limits when switching feeds.
 3. **Indefinite TTL**: Feeds should be cached indefinitely until manually refreshed by the user.
 4. **Targeted Invalidation**: Refreshing one feed should not clear the cache for other feeds.
 
-## Current Implementation: Statically Referenced `unstable_cache`
+## Current Implementation: Two-Layer Caching (In-Process + `unstable_cache`)
 
-The current approach uses Next.js's `unstable_cache` (which writes to the persistent Vercel Data Cache KV store) combined with a **static function reference**.
+After numerous failed attempts with single-layer solutions, the current architecture uses a robust two-layer approach:
+
+### Layer 1: In-Process Global Map (The Fast Path)
+We use a standard JavaScript `Map` initialized globally in the route handler. 
+- **Why**: Handles the most common user behavior—rapidly switching between feeds within the same session. 
+- **Benefit**: It provides sub-millisecond cache hits and bypasses all Next.js Data Cache complexities. On Vercel, this persists for the lifetime of the specific lambda container handling the requests.
+
+### Layer 2: Persistent Data Cache via `unstable_cache` (The Fallback)
+When a request hits a cold lambda (Layer 1 miss), we fallback to `unstable_cache` which writes to Vercel's persistent KV Data Cache.
+- **Why**: Survives lambda cold starts and shares cache across different workers/deployments.
+- **Implementation Detail**: We define `fetchRssData` statically at the module level. Next.js uses the function's static reference/AST (`cb.name`) to build the cache key. By using a named static function, the cache key is stable across all requests and deployments.
 
 ```typescript
-import { unstable_cache, revalidateTag } from "next/cache";
+// Layer 1: Fast in-process cache
+const inProcessCache = new Map<string, { data: string; storedAt: number }>();
 
-// 1. Define the fetcher statically so Next.js assigns a stable Function ID.
+// Layer 2: Persistent cache function
 async function fetchRssData(url: string): Promise<string> {
-  const fetchPromise = fetch(url, {
-    headers: REDDIT_REQUEST_HEADERS,
-    cache: "no-store", // unstable_cache handles the caching layer
-  });
-
+  const fetchPromise = fetch(url, { headers, cache: "no-store" });
   // Timeout handled via Promise.race, NOT by passing AbortSignal to fetch!
-  // ...
 }
 
-// 2. Wrap it dynamically but reference the static function
 function makeCachedFetcher(url: string) {
   const tag = cacheTagForUrl(url);
-  return unstable_cache(
-    fetchRssData, // STABLE REFERENCE
-    [tag],
-    { revalidate: false, tags: [tag] }
-  );
+  return unstable_cache(fetchRssData, [tag], { revalidate: false, tags: [tag] });
 }
-
-// 3. Force refresh invalidates the specific tag
-revalidateTag(cacheTagForUrl(urlString));
 ```
 
-### Why this approach was chosen:
-- **`unstable_cache`**: Correctly writes to Vercel Data Cache, surviving lambda cold starts.
-- **Static Reference (`fetchRssData`)**: Next.js uses the function's source code/location (`cb.name`) to build the cache key. By using a named static function, the cache key is stable across all requests and deployments.
-- **No `AbortSignal` in `fetch`**: Next.js 14/15's internal `fetch` patching completely opts out of Data Caching pipelines if an `AbortSignal` or custom agent is passed. We use `Promise.race` for timeouts instead.
+### Cache Invalidation (`revalidateTag`)
+
+When a user clicks "Refresh", we must bypass the cache and fetch fresh data.
+We invalidate **both** layers:
+1. `inProcessCache.delete(urlString)`
+2. `revalidateTag(cacheTagForUrl(urlString), { expire: 0 })`
+
+**CRITICAL FIX**: Next.js 16 requires the second argument for `revalidateTag` to specify the profile or `{ expire: 0 }`. Calling `revalidateTag(tag)` with a single argument is deprecated and causes TypeScript build failures and unpredictable caching bypass loops where the tag is stuck in a "pending revalidation" state.
 
 ---
 
@@ -57,14 +59,6 @@ Over several commits, the caching architecture bounced between different Next.js
 
 ### ❌ Attempt 1: Dynamic `unstable_cache` wrapper
 **What was tried**: Generating the `unstable_cache` with an inline arrow function dynamically on every request.
-```typescript
-function makeCachedFetcher(url: string) {
-  return unstable_cache(
-    async () => { fetch(url) }, // Inline function!
-    [tag], { tags: [tag] }
-  );
-}
-```
 **Why it failed**: Next.js relies on the function's static reference/AST to generate the `Function ID` for the cache key. Because the function was created inline dynamically, the ID was unstable, resulting in a **cache miss on every single request**. Switching feeds always hit Reddit again, causing rate limits.
 
 ### ❌ Attempt 2: `fetchCache = 'force-cache'` Route Segment Config
@@ -77,11 +71,15 @@ function makeCachedFetcher(url: string) {
 **What was tried**: Using the new `'use cache: remote'` directive which guarantees writing to the Vercel Data Cache.
 **Why it failed**: This required enabling the `cacheComponents: true` experimental flag in `next.config.ts`. Doing so globally enabled Partial Prerendering (PPR) across the entire application. Since existing Server Components were not designed for PPR, it broke the application build and caused 500 errors in production.
 
-### ❌ Attempt 4: In-Memory / File System (`fs`) Cache
-**What was tried**: Storing feeds in a global `Map` or using `fs.writeFileSync`.
-**Why it failed**: Vercel serverless environments are ephemeral. A global `Map` is wiped as soon as the lambda scales down or a new one spins up. The filesystem (`fs`) is read-only except for `/tmp`, which also does not persist across different container invocations.
+### ❌ Attempt 4: In-Memory / File System (`fs`) Cache ONLY
+**What was tried**: Storing feeds in a global `Map` or using `fs.writeFileSync` as the *only* caching mechanism.
+**Why it failed**: Vercel serverless environments are ephemeral. A global `Map` is wiped as soon as the lambda scales down or a new one spins up. The filesystem (`fs`) is read-only except for `/tmp`, which also does not persist across different container invocations. (This is why Layer 1 requires Layer 2).
+
+### ❌ Attempt 5: Single-Argument `revalidateTag(tag)`
+**What was tried**: Calling `revalidateTag(tag)` without a second argument in a Route Handler.
+**Why it failed**: In Next.js 16.2.7, this is deprecated and throws a TypeScript compilation error during build. Furthermore, in the Next.js cache architecture, it inadvertently flagged the request with `ActionDidRevalidateStaticAndDynamic`, leading to cache-bypass bugs during subsequent fetches in the same request lifecycle.
 
 ---
 
 ## Summary
-When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, and **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering.
+When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, and **always pass `{ expire: 0 }` to `revalidateTag`**.
