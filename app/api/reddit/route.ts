@@ -1,11 +1,9 @@
 import { createHash } from "crypto";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // ---------------------------------------------------------------------------
-// In-Memory Rate Limiter
+// Rate Limiter
 // ---------------------------------------------------------------------------
 interface RateLimitTracker {
   count: number;
@@ -35,7 +33,7 @@ const lastRefreshTimes = new Map<string, number>();
 const REFRESH_COOLDOWN_MS = 30 * 1000; // 30 seconds
 const UPSTREAM_TIMEOUT_MS = 30 * 1000;
 
-const REDDIT_REQUEST_HEADERS = {
+const REDDIT_REQUEST_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -49,47 +47,52 @@ const REDDIT_REQUEST_HEADERS = {
 };
 
 function cacheTagForUrl(url: string): string {
-  return `reddit-rss:${createHash("sha256").update(url).digest("hex")}`;
+  return `reddit-rss-${createHash("sha256").update(url).digest("hex").slice(0, 16)}`;
 }
 
 // ---------------------------------------------------------------------------
-// Cached RSS fetcher — uses unstable_cache (Next.js Data Cache).
+// Fetch Reddit RSS — always uses the persistent Data Cache via unstable_cache.
 //
-// WHY unstable_cache and not fetch() + force-cache, or 'use cache: remote':
+// WHY unstable_cache with a static function reference:
+//   Previous implementations dynamically created `unstable_cache(async () => ...)` 
+//   inside a factory function. Next.js relies on the function's static reference 
+//   or source location (cb.name) to generate a stable Function ID for the cache key.
+//   Dynamically generated inline functions produced dynamic IDs, causing cache 
+//   MISSES on every request in production.
 //
-//   fetch() + cache: "force-cache" in a Route Handler uses an in-process
-//   memory cache. In serverless environments (Vercel), each invocation runs in
-//   an isolated container destroyed after the request — effectively no cache.
-//
-//   'use cache: remote' requires cacheComponents: true in next.config.ts.
-//   That flag also enables PPR (Partial Prerendering) globally, which breaks
-//   any existing Server Component not designed for it — a whole-app breaking
-//   change for just an API proxy tweak.
-//
-//   unstable_cache writes to the same persistent Vercel Data Cache KV store,
-//   works in any context (including Route Handlers) without touching PPR or
-//   page rendering behavior. The result is shared across all serverless
-//   instances and persists across invocations.
-//
-// revalidate: false = indefinite TTL (FIFO eviction only).
-// tags: [tag]       = per-URL tag, enabling revalidateTag() for force-refresh.
+//   By defining `fetchRssData` statically at the module level, the reference
+//   is stable, allowing Next.js to reliably hit the Data Cache.
 // ---------------------------------------------------------------------------
+async function fetchRssData(url: string): Promise<string> {
+  console.log(`[Proxy] Fetching fresh data from Reddit for: ${url}`);
+  
+  const fetchPromise = fetch(url, {
+    headers: REDDIT_REQUEST_HEADERS,
+    // We omit `signal: AbortSignal.timeout` here because passing custom signals 
+    // can sometimes opt `fetch` completely out of Data Caching pipelines.
+    // Instead we use Promise.race for the timeout.
+    cache: "no-store", 
+  });
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Upstream timeout")), UPSTREAM_TIMEOUT_MS)
+  );
+
+  const res = (await Promise.race([fetchPromise, timeoutPromise])) as Response;
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new UpstreamRedditError(res.status, text);
+  }
+
+  return text;
+}
+
 function makeCachedFetcher(url: string) {
   const tag = cacheTagForUrl(url);
   return unstable_cache(
-    async () => {
-      const res = await fetch(url, {
-        headers: REDDIT_REQUEST_HEADERS,
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-        cache: "no-store",
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        throw new UpstreamRedditError(res.status, text);
-      }
-      return text;
-    },
-    [tag],             // cache key — unique per URL
+    fetchRssData, // STABLE static reference!
+    [tag],        // cache key
     { revalidate: false, tags: [tag] } // indefinite TTL, per-URL invalidation
   );
 }
@@ -154,18 +157,19 @@ export async function GET(request: NextRequest) {
     
     if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
       console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      // Strip the forceRefresh flag to serve the remote cache instead
+      // Strip the forceRefresh flag to serve the cache instead
       forceRefresh = false;
     } else {
-      // Immediately expire this URL's remote cache entry so the next
-      // fetchRedditRss call fetches fresh data and repopulates the cache.
-      revalidateTag(cacheTagForUrl(urlString), { expire: 0 });
+      // Invalidate this URL's Data Cache entry so the cached fetch is bypassed.
+      revalidateTag(cacheTagForUrl(urlString));
       lastRefreshTimes.set(urlString, now);
     }
   }
 
   try {
-    const text = await makeCachedFetcher(urlString)();
+    console.log(`[Proxy] Request for: ${urlString} | forceRefresh: ${forceRefresh}`);
+    const fetcher = makeCachedFetcher(urlString);
+    const text = await fetcher(urlString);
 
     return new NextResponse(text, {
       status: 200,
@@ -184,4 +188,3 @@ export async function GET(request: NextRequest) {
     return new NextResponse(error.message, { status: 500 });
   }
 }
-
