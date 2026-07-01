@@ -1,5 +1,3 @@
-import { createHash } from "crypto";
-import { unstable_cache, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
@@ -46,24 +44,21 @@ const REDDIT_REQUEST_HEADERS: Record<string, string> = {
   "Upgrade-Insecure-Requests": "1",
 };
 
-function cacheTagForUrl(url: string): string {
-  return `reddit-rss-${createHash("sha256").update(url).digest("hex").slice(0, 16)}`;
-}
-
 // ---------------------------------------------------------------------------
-// Layer 1: In-Process Cache (global Map)
+// Server-Side In-Process Cache (global Map)
 // ---------------------------------------------------------------------------
-// This survives across requests within the same lambda/process lifecycle.
-// It is the fast path that eliminates redundant Reddit calls when users
-// switch between feeds. On Vercel, this persists for the lifetime of the
-// lambda container (minutes to hours depending on traffic). Locally, it
-// persists for the entire dev server session.
+// This is the ONLY server-side cache layer. It survives across requests within
+// the same process lifecycle.
 //
-// This is NOT the same as the failed "in-memory Map" attempt documented in
-// CACHING_ARCHITECTURE.md — that attempt tried to use ONLY a Map with no
-// persistent fallback. Here, the Map is Layer 1 of a two-layer system
-// where Layer 2 (unstable_cache / Data Cache) provides cross-lambda
-// persistence.
+// - In dev: persists for the entire dev server session.
+// - On Vercel: persists for the lifetime of the lambda container (minutes to
+//   hours depending on traffic).
+//
+// The previous "Layer 2" (unstable_cache / Next.js Data Cache) was removed
+// because it demonstrably never persisted data — see CACHING_ARCHITECTURE.md
+// for the full post-mortem. The PRIMARY caching now happens client-side in
+// the useReddit hook, which eliminates /api/reddit calls entirely for
+// previously loaded feeds.
 // ---------------------------------------------------------------------------
 interface InProcessCacheEntry {
   data: string;
@@ -73,22 +68,14 @@ interface InProcessCacheEntry {
 const inProcessCache = new Map<string, InProcessCacheEntry>();
 
 // ---------------------------------------------------------------------------
-// Layer 2: Persistent Data Cache via unstable_cache
+// Fetch from Reddit
 // ---------------------------------------------------------------------------
-// Fetch Reddit RSS — the actual network call to Reddit.
-// Defined as a static named function so Next.js generates a stable Function
-// ID for the cache key (see CACHING_ARCHITECTURE.md for details on why
-// inline/dynamic functions break caching).
-// ---------------------------------------------------------------------------
-async function fetchRssData(url: string): Promise<string> {
+async function fetchFromReddit(url: string): Promise<string> {
   console.log(`[Proxy] Fetching fresh data from Reddit for: ${url}`);
-  
+
   const fetchPromise = fetch(url, {
     headers: REDDIT_REQUEST_HEADERS,
-    // We omit `signal: AbortSignal.timeout` here because passing custom signals 
-    // can sometimes opt `fetch` completely out of Data Caching pipelines.
-    // Instead we use Promise.race for the timeout.
-    cache: "no-store", 
+    cache: "no-store",
   });
 
   const timeoutPromise = new Promise<never>((_, reject) =>
@@ -101,38 +88,6 @@ async function fetchRssData(url: string): Promise<string> {
   if (!res.ok) {
     throw new UpstreamRedditError(res.status, text);
   }
-
-  return text;
-}
-
-function makeCachedFetcher(url: string) {
-  const tag = cacheTagForUrl(url);
-  return unstable_cache(
-    fetchRssData, // STABLE static reference!
-    [tag],        // cache key
-    { revalidate: false, tags: [tag] } // indefinite TTL, per-URL invalidation
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Two-layer cache lookup
-// ---------------------------------------------------------------------------
-async function getCachedData(urlString: string): Promise<string> {
-  // Layer 1: Check in-process cache first (sub-millisecond)
-  const l1Entry = inProcessCache.get(urlString);
-  if (l1Entry) {
-    console.log(`[Proxy] L1 cache HIT (in-process) for: ${urlString}`);
-    return l1Entry.data;
-  }
-
-  // Layer 2: Check persistent Data Cache via unstable_cache
-  console.log(`[Proxy] L1 cache MISS, trying L2 (Data Cache) for: ${urlString}`);
-  const fetcher = makeCachedFetcher(urlString);
-  const text = await fetcher(urlString);
-
-  // Populate Layer 1 with the result (whether it came from L2 cache or fresh fetch)
-  inProcessCache.set(urlString, { data: text, storedAt: Date.now() });
-  console.log(`[Proxy] Populated L1 cache for: ${urlString}`);
 
   return text;
 }
@@ -191,31 +146,43 @@ export async function GET(request: NextRequest) {
 
   const urlString = targetUrl.toString();
 
-  // 2. Force-Refresh: Invalidate BOTH cache layers
+  // 2. Force-Refresh: Invalidate the server cache
   if (forceRefresh) {
     const lastRefresh = lastRefreshTimes.get(urlString);
     
     if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
       console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      // Strip the forceRefresh flag to serve the cache instead
       forceRefresh = false;
     } else {
-      // Invalidate Layer 1 (in-process)
       inProcessCache.delete(urlString);
-      console.log(`[Proxy] L1 cache invalidated for: ${urlString}`);
-
-      // Invalidate Layer 2 (Data Cache) — uses { expire: 0 } for immediate
-      // expiration as required by Next.js 16's revalidateTag 2-arg signature.
-      revalidateTag(cacheTagForUrl(urlString), { expire: 0 });
-      console.log(`[Proxy] L2 cache invalidated (revalidateTag) for: ${urlString}`);
-
+      console.log(`[Proxy] Server cache invalidated for: ${urlString}`);
       lastRefreshTimes.set(urlString, now);
     }
   }
 
+  // 3. Check server-side in-process cache
+  if (!forceRefresh) {
+    const cached = inProcessCache.get(urlString);
+    if (cached) {
+      console.log(`[Proxy] Server cache HIT for: ${urlString}`);
+      return new NextResponse(cached.data, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/xml",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+  }
+
+  // 4. Cache miss — fetch from Reddit
   try {
-    console.log(`[Proxy] Request for: ${urlString} | forceRefresh: ${forceRefresh}`);
-    const text = await getCachedData(urlString);
+    console.log(`[Proxy] Server cache MISS for: ${urlString} | forceRefresh: ${forceRefresh}`);
+    const text = await fetchFromReddit(urlString);
+
+    // Store in server cache
+    inProcessCache.set(urlString, { data: text, storedAt: Date.now() });
+    console.log(`[Proxy] Stored in server cache: ${urlString}`);
 
     return new NextResponse(text, {
       status: 200,
