@@ -20,13 +20,13 @@ export interface SubredditItem {
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
   { id: "askreddit", label: "askreddit", icon: Hash },
-  { id: "worldnews", label: "worldnews", icon: Hash },
-  { id: "programming", label: "programming", icon: Hash },
-  { id: "technology", label: "technology", icon: Hash },
-  { id: "science", label: "science", icon: Hash },
   { id: "gaming", label: "gaming", icon: Hash },
   { id: "movies", label: "movies", icon: Hash },
   { id: "music", label: "music", icon: Hash },
+  { id: "programming", label: "programming", icon: Hash },
+  { id: "science", label: "science", icon: Hash },
+  { id: "technology", label: "technology", icon: Hash },
+  { id: "worldnews", label: "worldnews", icon: Hash },
 ];
 
 
