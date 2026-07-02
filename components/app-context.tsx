@@ -19,7 +19,7 @@ export interface SubredditItem {
 }
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
-  { id: "askreddit", label: "AskReddit", icon: Hash },
+  { id: "askreddit", label: "askreddit", icon: Hash },
   { id: "worldnews", label: "worldnews", icon: Hash },
   { id: "programming", label: "programming", icon: Hash },
   { id: "technology", label: "technology", icon: Hash },
