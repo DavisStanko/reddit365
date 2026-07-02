@@ -15,25 +15,6 @@ import { extractCommentMedia } from "./media-embed";
 
 export type SortMode = "hot" | "new" | "top";
 
-// ---------------------------------------------------------------------------
-// Client-Side Feed Cache
-// ---------------------------------------------------------------------------
-// Module-level Maps that persist for the entire browser session. When a user
-// switches between feeds, we serve from this cache instantly instead of
-// making a new /api/reddit request. This is the PRIMARY caching layer —
-// the server-side in-process cache is just a fallback for when the client
-// cache is empty (e.g., page refresh).
-//
-// Keys: "feed::sort" (e.g. "popular::hot") for posts,
-//       permalink string for comments.
-// ---------------------------------------------------------------------------
-const postsCache = new Map<string, Post[]>();
-const commentsCache = new Map<string, FlatComment[]>();
-
-function postsCacheKey(feed: string, sort: SortMode): string {
-  return `${feed}::${sort}`;
-}
-
 export interface RetryInfo {
   /** Which retry we are on (1-based: 1 means first retry after initial failure). */
   attempt: number;
@@ -424,20 +405,10 @@ export function useReddit(
   if (feed !== prevFeed || sort !== prevSort) {
     setPrevFeed(feed);
     setPrevSort(sort);
+    setPosts([]);
     setPostsError(null);
     setPostsRetryInfo(null);
-
-    // Check client-side cache for this feed+sort combo
-    const cacheKey = postsCacheKey(feed, sort);
-    const cached = postsCache.get(cacheKey);
-    if (cached) {
-      // Serve from client cache instantly — no network call at all
-      setPosts(cached);
-      setIsLoadingPosts(false);
-    } else {
-      setPosts([]);
-      setIsLoadingPosts(true);
-    }
+    setIsLoadingPosts(true);
   }
 
   // ---- Comments state ----
@@ -465,14 +436,6 @@ export function useReddit(
   // Effect: fetch posts when feed/sort changes
   // ------------------------------------------------------------------
   useEffect(() => {
-    // Check client-side cache — if we already have posts for this
-    // feed+sort, skip the network call entirely.
-    const cacheKey = postsCacheKey(feed, sort);
-    if (postsCache.has(cacheKey)) {
-      // Already set synchronously in the if-block above, nothing to do
-      return;
-    }
-
     const controller = new AbortController();
 
     const doFetch = async () => {
@@ -507,8 +470,6 @@ export function useReddit(
 
         const { posts: newPosts } = parsePostFeed(text, feed);
         setPosts(newPosts);
-        // Store in client-side cache for instant retrieval on feed switch
-        postsCache.set(cacheKey, newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] posts fetch failed:", err);
@@ -531,28 +492,16 @@ export function useReddit(
   }, [feed, sort]);
 
   // ------------------------------------------------------------------
-  // Effect: restore or clear comments when selectedPost changes
+  // Effect: clear comments when selectedPost changes
   // ------------------------------------------------------------------
   useEffect(() => {
     loadingCommentsRef.current = false;
-
-    // Check client-side comment cache
-    const permalink = selectedPost?.permalink;
-    const cached = permalink ? commentsCache.get(permalink) : undefined;
-
     queueMicrotask(() => {
+      setComments([]);
       setCommentsError(null);
       setCommentsRetryInfo(null);
+      setHasFetchedComments(false);
       setIsLoadingComments(false);
-
-      if (cached && cached.length > 0) {
-        // Restore from client cache — no network call needed
-        setComments(cached);
-        setHasFetchedComments(true);
-      } else {
-        setComments([]);
-        setHasFetchedComments(false);
-      }
     });
   }, [selectedPost?.id, selectedPost?.permalink]);
 
@@ -560,10 +509,6 @@ export function useReddit(
   // refreshPosts — force re-fetch from page 1
   // ------------------------------------------------------------------
   const refreshPosts = useCallback(() => {
-    // Clear client-side cache for this feed+sort so we fetch fresh data
-    const cacheKey = postsCacheKey(feedRef.current, sortRef.current);
-    postsCache.delete(cacheKey);
-
     setPosts([]);
     setPostsError(null);
     setPostsRetryInfo(null);
@@ -598,8 +543,6 @@ export function useReddit(
 
         const { posts: newPosts } = parsePostFeed(text, feedRef.current);
         setPosts(newPosts);
-        // Update client-side cache with fresh data
-        postsCache.set(cacheKey, newPosts);
       } catch (err: unknown) {
         if ((err as Error).name === "AbortError") return;
         console.warn("[useReddit] refresh failed:", err);
@@ -622,9 +565,6 @@ export function useReddit(
   const refreshComments = useCallback(() => {
     const permalink = selectedPostRef.current?.permalink;
     if (!permalink) return;
-
-    // Clear client-side comment cache for this post
-    commentsCache.delete(permalink);
 
     setComments([]);
     setCommentsError(null);
@@ -693,8 +633,6 @@ export function useReddit(
 
           setComments(newComments);
           setHasFetchedComments(true);
-          // Store in client-side cache
-          commentsCache.set(permalink, newComments);
         } else {
           setComments([]);
           setHasFetchedComments(true);

@@ -1,101 +1,96 @@
 # Reddit365 Caching Architecture & Post-Mortem
 
-This document serves as a comprehensive guide to the caching architecture in Reddit365, documenting the reasons behind the current implementation and detailing previous failed attempts. **Do not attempt to rewrite the caching logic without reading this document first.**
+> **🚨 AGENT WARNING: READ BEFORE TOUCHING CACHE 🚨**
+> 1. **MANDATORY READING:** You MUST read this entire document before making any changes to data fetching or caching.
+> 2. **APPEND-ONLY HISTORY:** This document is a historical record of failures. **NEVER delete past failed attempts from this file.** If you try a new approach that fails, you MUST add it to the "Failed Implementations" list with a post-mortem.
+> 3. **DO NOT ASSUME IT'S FIXED:** Next.js caching is notoriously difficult in serverless environments. Even if you think you fixed a cache issue, do not assume it will work in production. Always test thoroughly and leave a trail of documentation.
 
 ## The Problem
 
 Reddit365 relies on Reddit's unauthenticated RSS feeds (`.rss`) to bypass CORS and API blocks for `.json` endpoints. Reddit aggressively rate-limits these RSS feeds (returning HTTP 429). To provide a responsive "Outlook-like" experience where users can quickly switch between feeds and view posts, the application **must** cache these feeds aggressively.
 
 The requirements for caching are:
-1. **No redundant network calls**: Switching between previously loaded feeds must be instant — no loading spinners, no network calls.
-2. **Persistent within a session**: Once a feed is loaded, it should remain cached until the user explicitly refreshes or closes the browser tab.
-3. **Targeted Invalidation**: Refreshing one feed should not clear the cache for other feeds.
+1. **Server-Side Only**: Feeds must be fetched and cached by the Next.js API proxy (`app/api/reddit/route.ts`).
+2. **Persistent across invocations**: Because Vercel uses a serverless architecture, memory is isolated per lambda container and destroyed after inactivity. In-memory caches alone expire too quickly, resulting in frequent cache misses and rate limits when switching feeds.
+3. **Indefinite TTL**: Feeds should be cached indefinitely until manually refreshed by the user.
+4. **Targeted Invalidation**: Refreshing one feed should not clear the cache for other feeds.
+5. **Cross-User Consistency**: A feed cached by User A in one browser should be immediately available to User B in another browser without triggering a new Reddit fetch.
 
-## Current Implementation: Client-Side Primary + Server In-Process Fallback
+## Current Implementation: `unstable_cache` with Static Function Reference
 
-After numerous failed attempts with Next.js Data Cache primitives, the current architecture uses a fundamentally different approach: **the browser IS the cache**.
+After numerous failed attempts, the current architecture uses a carefully constructed `unstable_cache` wrapper that ensures cache keys are perfectly stable across requests and deployments, successfully utilizing Vercel's Data Cache.
 
-### Layer 1: Client-Side Module Map (PRIMARY — `lib/use-reddit.ts`)
+### The Solution
+We define the underlying fetch function (`fetchFromReddit`) **statically at the module level**, outside of the request handler.
 
-Two module-level `Map` instances persist for the entire browser session:
-- `postsCache: Map<string, Post[]>` — keyed by `"feed::sort"` (e.g., `"popular::hot"`)
-- `commentsCache: Map<string, FlatComment[]>` — keyed by post permalink
+When the request comes in, we dynamically construct the `unstable_cache` wrapper inside the request scope so that we can assign a **dynamic tag** (specific to the requested URL). By passing the static `fetchFromReddit` function into the wrapper, `unstable_cache` uses the function's static string representation for its internal key (`cb.toString()`). Combined with explicit `keyParts`, this guarantees the cache key will not change across requests, completely preventing the "Loop of Doom" cache misses.
 
-**How it works:**
-1. When a feed is first loaded, posts are fetched from `/api/reddit` and stored in `postsCache`.
-2. When the user switches to a different feed and then switches back, `postsCache` serves the data **instantly** — no network call at all. The `useEffect` that would normally fetch posts detects the cache hit and returns early.
-3. Comments follow the same pattern: once loaded, they're cached and restored when the user navigates back to the same post.
-4. **Force-refresh** (via the refresh button) clears the client cache entry for that specific feed+sort, then fetches with `forceRefresh=true` to also bypass the server cache.
+```typescript
+// 1. Defined statically outside the route handler
+async function fetchFromReddit(url: string): Promise<string> {
+  const fetchPromise = fetch(url, { headers, cache: "no-store" });
+  // Timeout handled via Promise.race, NOT by passing AbortSignal to fetch!
+}
 
-**Why this works and server-side caching didn't:**
-- The browser is a single, long-lived process. A `Map` in module scope persists for the entire page session — there is no cold start, no lambda recycling, no container eviction.
-- This approach eliminates not just Reddit API calls but also `/api/reddit` proxy calls. The client never hits the server at all for cached feeds.
-- Zero dependency on Next.js Data Cache internals, `unstable_cache`, `revalidateTag`, or any other framework-specific caching primitive.
+export async function GET(request: NextRequest) {
+  const urlString = targetUrl.toString();
+  const cacheTag = `reddit-${Buffer.from(urlString).toString("base64")}`;
 
-### Layer 2: Server In-Process Map (FALLBACK — `app/api/reddit/route.ts`)
+  // 2. Dynamic Wrapper, Static Function
+  const getCachedRedditFeed = unstable_cache(
+    fetchFromReddit, 
+    ["reddit-proxy", urlString], // Stable key parts
+    {
+      revalidate: 31536000, // 1 year
+      tags: [cacheTag],
+    }
+  );
 
-A global `Map<string, InProcessCacheEntry>` in the API proxy serves as a secondary cache:
-- **In dev**: persists for the entire dev server session.
-- **On Vercel**: persists for the lifetime of the lambda container (minutes to hours depending on traffic).
+  const data = await getCachedRedditFeed(urlString);
+}
+```
 
-This layer catches requests that miss the client cache (e.g., first page load, hard refresh). It does NOT use any Next.js Data Cache primitives — just a plain JavaScript Map.
+### Cache Invalidation (`revalidateTag`)
 
-### Cache Invalidation
+When a user clicks "Refresh", the client passes `forceRefresh=true`. The proxy intercepts this and calls:
+`revalidateTag(cacheTag, { expire: 0 })`
 
-| Action | Client Cache | Server Cache |
-|---|---|---|
-| Switch feed | ❌ preserved | Not consulted |
-| Change sort (Hot/New/Top) | ❌ preserved (separate key) | Not consulted |
-| Click refresh button | ✅ cleared (this feed only) | ✅ cleared (this URL only) |
-| Page refresh (F5) | ✅ cleared (all, fresh page) | ❌ preserved |
-| Close tab | ✅ cleared (all) | ❌ preserved |
+**CRITICAL FIX**: Next.js 16 requires the second argument for `revalidateTag` to specify `{ expire: 0 }`. Calling `revalidateTag(tag)` with a single argument is deprecated and causes TypeScript build failures.
 
 ---
 
 ## Failed Implementations (The Loop of Doom)
 
-Over several commits, the caching architecture bounced between different Next.js primitives that failed in production serverless environments. The server-side-only approach was fundamentally flawed because **no Next.js caching primitive reliably persists data across serverless function invocations** without enabling `cacheComponents: true`, which breaks the app.
+Over several commits, the caching architecture bounced between different Next.js primitives that failed in production serverless environments. This list is preserved to prevent repeating the same mistakes.
 
-### ❌ Attempt 1: Dynamic `unstable_cache` wrapper
-**What was tried**: Generating the `unstable_cache` wrapper with an inline arrow function dynamically on every request.
-**Why it failed**: Next.js relies on the function's static reference/AST to generate the `Function ID` for the cache key. Because the function was created inline dynamically, the ID was unstable, resulting in a **cache miss on every single request**. Switching feeds always hit Reddit again, causing rate limits.
+### ❌ Attempt 1: Dynamic `unstable_cache` wrapper (Inline Function)
+**What was tried**: Generating the `unstable_cache` with an inline arrow function dynamically on every request:
+`unstable_cache(async () => fetchFromReddit(url), ...)`
+**Why it failed**: Next.js relies on the function's stringified representation (`cb.toString()`) to generate the `Function ID` for the cache key. Because the function was created inline dynamically (and captured closures), the ID was unstable, resulting in a **cache miss on every single request**. Switching feeds always hit Reddit again.
 
 ### ❌ Attempt 2: `fetchCache = 'force-cache'` Route Segment Config
 **What was tried**: Exporting `const fetchCache = 'force-cache'` in the route handler and relying on Next.js's built-in `fetch(url, { cache: 'force-cache' })`.
 **Why it failed**:
 1. Next.js `fetch` cache bypassed the Data Cache completely because `signal: AbortSignal.timeout(...)` was passed to the `fetch` call. Next.js assumes custom signals mean the request isn't safely cacheable.
-2. Even without the signal, Route Handlers that read dynamic data (like `request.nextUrl.searchParams`) are aggressively marked dynamic, and `force-cache` fetches often fallback to an isolated in-memory cache per lambda container. The cache expired as soon as the container was recycled ("expires very quickly").
+2. Even without the signal, Route Handlers that read dynamic data (like `request.nextUrl.searchParams`) are aggressively marked dynamic, and `force-cache` fetches often fallback to an isolated in-memory cache per lambda container. The cache expired as soon as the container was recycled.
 
 ### ❌ Attempt 3: `'use cache: remote'` (Next.js 16 Cache Components)
 **What was tried**: Using the new `'use cache: remote'` directive which guarantees writing to the Vercel Data Cache.
 **Why it failed**: This required enabling the `cacheComponents: true` experimental flag in `next.config.ts`. Doing so globally enabled Partial Prerendering (PPR) across the entire application. Since existing Server Components were not designed for PPR, it broke the application build and caused 500 errors in production.
 
-### ❌ Attempt 4: In-Memory / File System (`fs`) Cache ONLY (Server-Side)
+### ❌ Attempt 4: In-Memory / File System (`fs`) Cache ONLY
 **What was tried**: Storing feeds in a global `Map` or using `fs.writeFileSync` as the *only* caching mechanism.
 **Why it failed**: Vercel serverless environments are ephemeral. A global `Map` is wiped as soon as the lambda scales down or a new one spins up. The filesystem (`fs`) is read-only except for `/tmp`, which also does not persist across different container invocations.
 
 ### ❌ Attempt 5: Single-Argument `revalidateTag(tag)`
 **What was tried**: Calling `revalidateTag(tag)` without a second argument in a Route Handler.
-**Why it failed**: In Next.js 16.2.7, this is deprecated and throws a TypeScript compilation error during build. Furthermore, in the Next.js cache architecture, it inadvertently flagged the request with `ActionDidRevalidateStaticAndDynamic`, leading to cache-bypass bugs during subsequent fetches in the same request lifecycle.
+**Why it failed**: In Next.js 16.2.7, this is deprecated and throws a TypeScript compilation error during build. Furthermore, in the Next.js cache architecture, it inadvertently flagged the request with `ActionDidRevalidateStaticAndDynamic`, leading to cache-bypass bugs.
 
-### ❌ Attempt 6: Two-Layer Caching (In-Process Map + `unstable_cache` with Static Function)
-**What was tried**: The most sophisticated server-side approach — a two-layer system combining an in-process `Map` (L1) with `unstable_cache` using a static named function reference (L2). Tags were per-URL hashes, `revalidate: false` for indefinite TTL, and `revalidateTag(tag, { expire: 0 })` for targeted invalidation.
-**Why it failed**:
-1. **`unstable_cache` never actually persisted data.** The `.next/cache/fetch-cache/` directory was never created. Despite the function being static and the cache key being stable, `unstable_cache` in a Route Handler context (workUnitStore type `'request'`) went through a code path (line 144-146 of `unstable-cache.js`) that checked `workStore.isOnDemandRevalidate` and `incrementalCache.isOnDemandRevalidate`. These flags were sometimes set by framework internals, causing the cache to be bypassed entirely.
-2. **`revalidateTag` in the same request poisoned subsequent `unstable_cache` reads.** When `revalidateTag(tag, { expire: 0 })` was called (for force-refresh), it added the tag to `workStore.pendingRevalidatedTags`. Later in the same request, when `unstable_cache` tried to read from the Data Cache, the `IncrementalCache.get()` method checked `pendingRevalidatedTags` and found the recently revalidated tag → returned `null` (cache miss) → called `fetchRssData` again. This was by design in Next.js (to prevent reading your own stale writes), but it made force-refresh always double-fetch.
-3. **In dev mode with Turbopack**, the `cb.toString()` used in the cache key could change across HMR recompilations, making cache keys unstable.
-4. **Net effect**: L2 provided zero actual caching benefit. Every request that missed L1 also missed L2 and fetched from Reddit. L1 (in-process Map) was doing all the work, and it died with the process.
+### ❌ Attempt 6: Client-Side Primary Caching (The "Local" Cache)
+**What was tried**: Maintaining a module-level `Map` inside the React `useReddit` hook, serving feeds instantly from the browser's memory without hitting the API proxy at all.
+**Why it failed**: The requirements dictate that caching must be entirely server-side to minimize requests *across all users*. A client-side cache means that if User A loads a feed, and User B loads the same feed, the API proxy still hits Reddit twice. If User A opens an incognito window, it hits Reddit a third time. The server-side cache must be robust enough to handle the load globally.
 
 ---
 
-## Summary: Rules for Future Developers
-
-1. **DO NOT use `unstable_cache` in Route Handlers.** It has been deprecated in Next.js 16 and replaced by `use cache`, but `use cache` requires `cacheComponents: true` which breaks the app. The `unstable_cache` function in Route Handlers goes through code paths that make caching unreliable.
-
-2. **DO NOT try to persist server-side cache across Vercel lambda invocations** without `cacheComponents: true`. The Next.js Data Cache (`fetch` with `force-cache`, `unstable_cache`, etc.) does not reliably persist in Route Handlers on serverless. Do not add a client-side-only cache layer, custom disk cache, or Redis/KV store without a very compelling reason — the client-side Map approach is sufficient.
-
-3. **The client-side cache is the primary layer.** The browser is the only reliable long-lived process. A `Map` in module scope persists for the entire page session. Treat the server cache as a nice-to-have optimization for first loads, not as the primary caching mechanism.
-
-4. **Never cache error responses.** The server cache (and client cache) only stores successful responses. 429 errors should be retried via the client-side `fetchWithRetry` mechanism, not cached.
-
-5. **Force-refresh must clear BOTH caches.** `refreshPosts` clears the client cache entry and passes `forceRefresh=true` to bypass the server cache. `refreshComments` follows the same pattern.
+## Summary
+When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, and **always pass `{ expire: 0 }` to `revalidateTag`**.

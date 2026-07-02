@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache, revalidateTag } from "next/cache";
 
 // ---------------------------------------------------------------------------
 // Rate Limiter
@@ -24,11 +25,6 @@ const rateLimits = new Map<string, RateLimitTracker>();
 const RATE_LIMIT_MAX_REQUESTS = 120;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
-// ---------------------------------------------------------------------------
-// Force-Refresh Cooldown
-// ---------------------------------------------------------------------------
-const lastRefreshTimes = new Map<string, number>();
-const REFRESH_COOLDOWN_MS = 30 * 1000; // 30 seconds
 const UPSTREAM_TIMEOUT_MS = 30 * 1000;
 
 const REDDIT_REQUEST_HEADERS: Record<string, string> = {
@@ -45,37 +41,14 @@ const REDDIT_REQUEST_HEADERS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Server-Side In-Process Cache (global Map)
-// ---------------------------------------------------------------------------
-// This is the ONLY server-side cache layer. It survives across requests within
-// the same process lifecycle.
-//
-// - In dev: persists for the entire dev server session.
-// - On Vercel: persists for the lifetime of the lambda container (minutes to
-//   hours depending on traffic).
-//
-// The previous "Layer 2" (unstable_cache / Next.js Data Cache) was removed
-// because it demonstrably never persisted data — see CACHING_ARCHITECTURE.md
-// for the full post-mortem. The PRIMARY caching now happens client-side in
-// the useReddit hook, which eliminates /api/reddit calls entirely for
-// previously loaded feeds.
-// ---------------------------------------------------------------------------
-interface InProcessCacheEntry {
-  data: string;
-  storedAt: number;
-}
-
-const inProcessCache = new Map<string, InProcessCacheEntry>();
-
-// ---------------------------------------------------------------------------
-// Fetch from Reddit
+// Static Fetch Function (MUST be static for unstable_cache key stability)
 // ---------------------------------------------------------------------------
 async function fetchFromReddit(url: string): Promise<string> {
   console.log(`[Proxy] Fetching fresh data from Reddit for: ${url}`);
 
   const fetchPromise = fetch(url, {
     headers: REDDIT_REQUEST_HEADERS,
-    cache: "no-store",
+    cache: "no-store", // We manage cache explicitly via unstable_cache
   });
 
   const timeoutPromise = new Promise<never>((_, reject) =>
@@ -109,28 +82,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Periodic garbage collection to prevent memory leaks from old IPs and old refresh times
+  // Periodic garbage collection for rate limits
   if (Math.random() < 0.05) {
     for (const [key, value] of rateLimits.entries()) {
       if (now > value.resetTime) {
         rateLimits.delete(key);
       }
     }
-    for (const [url, time] of lastRefreshTimes.entries()) {
-      if (now - time > REFRESH_COOLDOWN_MS) {
-        lastRefreshTimes.delete(url);
-      }
-    }
   }
 
   const urlParam = request.nextUrl.searchParams.get("url");
-  let forceRefresh = request.nextUrl.searchParams.get("forceRefresh") === "true";
+  const forceRefresh = request.nextUrl.searchParams.get("forceRefresh") === "true";
   
   if (!urlParam) {
     return new NextResponse("Missing url param", { status: 400 });
   }
 
-  // URL Validation to prevent SSRF
+  // URL Validation
   let targetUrl: URL;
   try {
     targetUrl = new URL(urlParam);
@@ -145,53 +113,43 @@ export async function GET(request: NextRequest) {
   }
 
   const urlString = targetUrl.toString();
+  // Create a safe tag string
+  const cacheTag = `reddit-${Buffer.from(urlString).toString("base64")}`;
 
-  // 2. Force-Refresh: Invalidate the server cache
+  // 2. Handle Force Refresh
   if (forceRefresh) {
-    const lastRefresh = lastRefreshTimes.get(urlString);
-    
-    if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
-      console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      forceRefresh = false;
-    } else {
-      inProcessCache.delete(urlString);
-      console.log(`[Proxy] Server cache invalidated for: ${urlString}`);
-      lastRefreshTimes.set(urlString, now);
-    }
+    console.log(`[Proxy] Force refresh requested, invalidating tag: ${cacheTag}`);
+    // Use the exact parameters Next.js requires for on-demand revalidation
+    revalidateTag(cacheTag, { expire: 0 });
   }
 
-  // 3. Check server-side in-process cache
-  if (!forceRefresh) {
-    const cached = inProcessCache.get(urlString);
-    if (cached) {
-      console.log(`[Proxy] Server cache HIT for: ${urlString}`);
-      return new NextResponse(cached.data, {
-        status: 200,
-        headers: {
-          "Content-Type": "text/xml",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
+  // 3. Dynamic Cache Wrapper
+  // We construct the wrapper inside the request to use dynamic tags, but we 
+  // pass the STATIC `fetchFromReddit` function so `cb.toString()` is stable.
+  const getCachedRedditFeed = unstable_cache(
+    fetchFromReddit,
+    ["reddit-proxy", urlString], // Stable key parts
+    {
+      revalidate: 31536000, // 1 year (effectively indefinite)
+      tags: [cacheTag],
     }
-  }
+  );
 
-  // 4. Cache miss — fetch from Reddit
+  // 4. Fetch (from cache or upstream)
   try {
-    console.log(`[Proxy] Server cache MISS for: ${urlString} | forceRefresh: ${forceRefresh}`);
-    const text = await fetchFromReddit(urlString);
-
-    // Store in server cache
-    inProcessCache.set(urlString, { data: text, storedAt: Date.now() });
-    console.log(`[Proxy] Stored in server cache: ${urlString}`);
+    const text = await getCachedRedditFeed(urlString);
 
     return new NextResponse(text, {
       status: 200,
       headers: {
         "Content-Type": "text/xml",
         "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, s-maxage=31536000, stale-while-revalidate=86400",
       },
     });
   } catch (error: unknown) {
+    // unstable_cache throws if the underlying function throws.
+    // Errors are NOT cached by unstable_cache, which is correct behavior for 429s.
     if (error instanceof UpstreamRedditError) {
       console.error("[Proxy] Reddit returned:", error.status, error.body.slice(0, 200));
       return new NextResponse(error.body, { status: error.status });
