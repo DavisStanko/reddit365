@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     fetchFromReddit,
     ["reddit-proxy", urlString], // Stable key parts
     {
-      revalidate: 31536000, // 1 year (effectively indefinite)
+      revalidate: false, // Indefinite TTL
       tags: [cacheTag],
     }
   );
@@ -144,7 +144,6 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type": "text/xml",
         "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, s-maxage=31536000, stale-while-revalidate=86400",
       },
     });
   } catch (error: unknown) {

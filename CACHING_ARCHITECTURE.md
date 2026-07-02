@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     fetchFromReddit, 
     ["reddit-proxy", urlString], // Stable key parts
     {
-      revalidate: 31536000, // 1 year
+      revalidate: false, // Indefinite TTL
       tags: [cacheTag],
     }
   );
@@ -90,7 +90,11 @@ Over several commits, the caching architecture bounced between different Next.js
 **What was tried**: Maintaining a module-level `Map` inside the React `useReddit` hook, serving feeds instantly from the browser's memory without hitting the API proxy at all.
 **Why it failed**: The requirements dictate that caching must be entirely server-side to minimize requests *across all users*. A client-side cache means that if User A loads a feed, and User B loads the same feed, the API proxy still hits Reddit twice. If User A opens an incognito window, it hits Reddit a third time. The server-side cache must be robust enough to handle the load globally.
 
+### ❌ Attempt 7: `revalidate: 31536000` and `Cache-Control` Headers
+**What was tried**: Setting `revalidate: 31536000` (1 year) inside `unstable_cache` and returning `Cache-Control: public, s-maxage=31536000` from the Route Handler.
+**Why it failed**: Next.js serverless caching (and Vercel Data Cache) requires `revalidate: false` for a truly indefinite TTL that respects targeted tag invalidation. Furthermore, manually setting `Cache-Control` headers caused the CDN edge cache to interfere with the Next.js Data Cache. Feeds appeared to expire quickly or miss the cache entirely when switching feeds, causing redundant calls to Reddit's servers.
+
 ---
 
 ## Summary
-When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, and **always pass `{ expire: 0 }` to `revalidateTag`**.
+When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, **always pass `{ expire: 0 }` to `revalidateTag`**, and **use `revalidate: false` with no manual `Cache-Control` headers** for indefinite caching.

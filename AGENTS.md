@@ -12,7 +12,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **CRITICAL:** This document (`AGENTS.md`) is the single source of truth for the project. If you make any design, structural, or behavioral changes to the application, you **MUST** update this document to reflect those changes before completing your task. Do not let this document fall out of sync with the codebase.
 
-**KNOWLEDGE SYNCHRONIZATION:** If you ever modify `CACHING_ARCHITECTURE.md`, you **MUST** also update its corresponding Knowledge Item snapshot in the `.gemini/antigravity/knowledge/reddit365_caching/` directory by overwriting the artifact and updating the metadata.
+**CACHING PROTOCOL:**
+1. **READ BEFORE TOUCH:** You must read `CACHING_ARCHITECTURE.md` *before* suggesting or implementing any caching changes.
+2. **APPEND ONLY:** `CACHING_ARCHITECTURE.md` is an append-only historical log of failures. **NEVER delete old failed attempts.** Add new findings to it.
+3. **DO NOT ASSUME IT'S FIXED:** Caching in Next.js serverless is extremely tricky. Do not boldly assume your fix works in production until explicitly verified.
+4. **KNOWLEDGE SYNCHRONIZATION:** If you modify `CACHING_ARCHITECTURE.md`, you **MUST** sync the exact changes to its Knowledge Item snapshot in `.gemini/antigravity/knowledge/reddit365_caching/`.
 
 ## What This Project Is
 
