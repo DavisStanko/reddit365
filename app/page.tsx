@@ -49,7 +49,12 @@ function HomeContent() {
         {/* Full-height Sidebar Image — left column, top to bottom */}
         <div
           onContextMenu={(e) => e.preventDefault()}
-          style={{ width: "65px", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none", alignSelf: "stretch", overflow: "hidden" }}
+          onClick={openHelp}
+          role="button"
+          tabIndex={0}
+          aria-label="Open help and settings"
+          onKeyDown={(e) => e.key === "Enter" && openHelp()}
+          style={{ width: "65px", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none", alignSelf: "stretch", overflow: "hidden", cursor: "pointer" }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
