@@ -60,24 +60,24 @@ All styles live in `app/outlook.css` (imported globally). **Never use Tailwind u
 
 ## Layout Architecture
 
-The shell is a strict flex column. **Do not alter the shell structure without a very good reason.**
+The shell body is a strict flex row. **Do not alter the shell structure without a very good reason.**
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  TopBar (height: 48px, bg: --outlook-blue)          │  ← .top-bar
-├──────┬──────────────────────────────────────────────┤
-│      │  Ribbon (Tabs & Commands)                    │  ← .ribbon
-│ Icon ├──────────────┬──────────────┬────────────────┤
-│ Rail │  Folder Pane │ Message List │  Reading Pane  │
-│ 48px │  fixed:220   │ fixed:330    │  flex: 1       │
-│      │  min:160     │ min:200      │  min: 0        │
-│      │  max:400     │ max:600      │                │
-└──────┴──────────────┴──────────────┴────────────────┘
+┌──────┬────────────────────────────────────────────────┐
+│      │  Double Header (top bar + ribbon, 89px)        │  ← double_header.png
+│ Full ├──────────────┬──────────────┬──────────────────┤
+│ Side │  Folder Pane │ Message List │  Reading Pane    │
+│ 65px │  fixed:212   │ fixed:350    │  flex: 1         │
+│      │  min:160     │ min:200      │  min: 0          │
+│      │  max:400     │ max:600      │                  │
+└──────┴──────────────┴──────────────┴──────────────────┘
 ```
 
 - **`.outlook-shell`** — `display: flex; flex-direction: column; height: 100vh; overflow: hidden`
 - **`.outlook-shell__body`** — `display: flex; flex: 1; overflow: hidden`
-- **`.outlook-shell__main-area`** — Container for the Ribbon and Panes, `flex: 1; display: flex; flex-direction: column`
+- **`full_side.png` container** — `width: 65px; align-self: stretch` — sidebar image spans full height
+- **`.outlook-shell__main-area`** — Container for the double header image and panes, `flex: 1; display: flex; flex-direction: column`
+- **`double_header.png` container** — `height: 89px; width: 100%` — combined top bar + ribbon image
 - **`.outlook-shell__panes`** — `display: flex; flex: 1; overflow: hidden`
 - **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
 - **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
@@ -98,13 +98,12 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 
 | File / Element | Column Name | Outlook Equivalent | Notes |
 |---|---|---|---|
-| `/public/images/top-header.png` | N/A | Top ribbon/nav bar | Static image replacing top bar |
-| `/public/images/sidebar.png` | N/A | Left nav icon strip | Static image replacing icon rail |
-| `/public/images/second-header.png` | N/A | Ribbon Toolbar | Static image replacing ribbon |
+| `/public/images/full_side.png` | N/A | Left nav icon strip | Full-height sidebar (65px wide), spans entire viewport height alongside the main area |
+| `/public/images/double_header.png` | N/A | Top bar + Ribbon Toolbar | Combined header image (89px tall), placed at top of main area to the right of the sidebar — replaces the old separate `top-header.png` and `second-header.png` |
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
-| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 4 tabs: Using Reddit365, How Reddit365 Works, Settings, Feedback. Triggered on first visit and by clicking either header image. |
+| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 4 tabs: Using Reddit365, How Reddit365 Works, Settings, Feedback. Triggered on first visit and by clicking the double header image. |
 | `lib/media-embed.tsx` | N/A | N/A | Modular media detection and rendering: `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, `MediaEmbedList` components |
 
 ---

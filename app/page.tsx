@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { X } from "lucide-react";
 import {
   FolderPane,
@@ -46,30 +45,24 @@ function HomeContent() {
         </div>
       )}
 
-      {/* Top Header Image — click to open help */}
-      <div
-        onContextMenu={(e) => e.preventDefault()}
-        onClick={openHelp}
-        role="button"
-        tabIndex={0}
-        aria-label="Open help and settings"
-        onKeyDown={(e) => e.key === "Enter" && openHelp()}
-        style={{ position: "relative", width: "100%", height: "48px", flexShrink: 0, userSelect: "none", cursor: "pointer" }}
-      >
-        <Image src="/images/top-header.png" alt="Top Header" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
-      </div>
-
       <div className="outlook-shell__body">
-        {/* Sidebar Image */}
+        {/* Full-height Sidebar Image — left column, top to bottom */}
         <div
           onContextMenu={(e) => e.preventDefault()}
-          style={{ position: "relative", width: "50px", height: "100%", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none" }}
+          style={{ width: "65px", flexShrink: 0, backgroundColor: "#1f1f1f", userSelect: "none", alignSelf: "stretch", overflow: "hidden" }}
         >
-          <Image src="/images/sidebar.png" alt="Sidebar" fill style={{ objectFit: "cover", objectPosition: "top center", pointerEvents: "none" }} draggable={false} priority unoptimized />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/full_side.png"
+            alt="Sidebar"
+            draggable={false}
+            style={{ display: "block", width: "65px", height: "100%", objectFit: "fill", pointerEvents: "none" }}
+          />
         </div>
 
         <div className="outlook-shell__main-area">
-          {/* Second Header Image — click to open help */}
+          {/* Double Header Image (top bar + ribbon) — click to open help */}
+          {/* Height = 178/1245 * 100vh so it scales at the same rate as the sidebar (65×1245 → 100vh) */}
           <div
             onContextMenu={(e) => e.preventDefault()}
             onClick={openHelp}
@@ -77,9 +70,15 @@ function HomeContent() {
             tabIndex={0}
             aria-label="Open help and settings"
             onKeyDown={(e) => e.key === "Enter" && openHelp()}
-            style={{ position: "relative", width: "100%", height: "84px", flexShrink: 0, backgroundColor: "#f5f5f5", userSelect: "none", cursor: "pointer" }}
+            style={{ width: "100%", height: "calc(178 / 1245 * 100vh)", flexShrink: 0, userSelect: "none", cursor: "pointer", lineHeight: 0, overflow: "hidden" }}
           >
-            <Image src="/images/second-header.png" alt="Ribbon" fill style={{ objectFit: "cover", objectPosition: "left top", pointerEvents: "none" }} draggable={false} priority unoptimized />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/double_header.png"
+              alt="Outlook Header"
+              draggable={false}
+              style={{ display: "block", width: "100%", height: "100%", objectFit: "fill", pointerEvents: "none" }}
+            />
           </div>
 
           <div className="outlook-shell__panes">
