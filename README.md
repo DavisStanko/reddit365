@@ -1,7 +1,5 @@
 # Reddit365
 
-**[reddit365.davisstanko.com](https://reddit365.davisstanko.com)**
-
 A UI clone of Microsoft New Outlook that displays Reddit content in place of emails. The tab title reads "Outlook" and uses the real Outlook favicon, so it blends into a browser tab bar like any other work app.
 
 ![Reddit365 Image Loading Example](./public/images/screenshot-1.png)
@@ -14,15 +12,6 @@ A UI clone of Microsoft New Outlook that displays Reddit content in place of ema
 - **Reading pane** — selecting a post opens its content and comments on the right, formatted as an email thread. External image links (like `i.redd.it`) are automatically expanded into inline images.
 - **Help & Settings** — an accessible modal provides usage details, technical performance notes, and media embedding toggles.
 - **Disguise details** — tab title, favicon, and overall Fluent Design aesthetic match New Outlook closely enough to pass a casual glance.
-
-## Usage
-
-No login required. Open the app and start browsing.
-
-- **Add a subreddit:** click the "add feed" button in the sidebar and enter a subreddit name.
-- **Remove or reorder:** hover a folder row and click the trash icon that appears to remove it, or drag it to a new position.
-- **Read a post:** click any item in the feed to load it in the reading pane.
-- **Help & Settings:** click anywhere on the top blue header or the gray ribbon header to open the help modal.
 
 ## Limitations
 
