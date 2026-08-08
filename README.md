@@ -2,7 +2,9 @@
 
 A UI clone of Microsoft New Outlook that displays Reddit content in place of emails. This works despite Reddit's ban on third-party clients by proxying all calls to Reddit's RSS feeds through the server and aggressively caching them.
 
-![Reddit365 screenshot](demo.png)
+<p align="center">
+  <img src="demo.png" alt="Reddit365 screenshot" />
+</p>
 
 ## How to use
 
