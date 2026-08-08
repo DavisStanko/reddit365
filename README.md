@@ -2,6 +2,8 @@
 
 A UI clone of Microsoft New Outlook that displays Reddit content in place of emails. This works despite Reddit's ban on third-party clients by proxying all calls to Reddit's RSS feeds through the server and aggressively caching them.
 
+![Reddit365 screenshot](demo.png)
+
 ## How to use
 
 Manage your subreddit list from the sidebar. Sort the post feed by Hot, New, or Top. Select a post to read it and its comments in the reading pane. Open Help & Settings for usage details, technical performance notes, and media embedding toggles. Use the refresh button to bust the cache and fetch live content from Reddit.
