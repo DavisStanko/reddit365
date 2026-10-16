@@ -94,7 +94,17 @@ Over several commits, the caching architecture bounced between different Next.js
 **What was tried**: Setting `revalidate: 31536000` (1 year) inside `unstable_cache` and returning `Cache-Control: public, s-maxage=31536000` from the Route Handler.
 **Why it failed**: Next.js serverless caching (and Vercel Data Cache) requires `revalidate: false` for a truly indefinite TTL that respects targeted tag invalidation. Furthermore, manually setting `Cache-Control` headers caused the CDN edge cache to interfere with the Next.js Data Cache. Feeds appeared to expire quickly or miss the cache entirely when switching feeds, causing redundant calls to Reddit's servers.
 
+### ❌ Attempt 8: `old.reddit.com` RSS Endpoints (Forced Login Wall & Cached HTML)
+**What was tried**: Constructing RSS feed URLs using `https://old.reddit.com` (e.g. `https://old.reddit.com/r/popular/hot.rss?limit=100`).
+**Why it failed**: Reddit started enforcing a mandatory login wall on `old.reddit.com`, returning HTTP 302 redirects to `https://old.reddit.com/login/?reason=lor2` for all unauthenticated traffic. Because `fetch()` follows redirects by default, it loaded the HTML login page which returned HTTP 200 OK. `unstable_cache` only checked `if (!res.ok)`, so it treated the HTML login page as valid feed data and cached it indefinitely in Vercel Data Cache with `revalidate: false`. The client-side XML parser failed to find any `<entry>` tags in the HTML, causing all feeds to silently display 0 posts.
+**Fix**:
+1. Switched `use-reddit.ts` to use `https://www.reddit.com`, which serves public Atom/RSS feeds unauthenticated without redirecting.
+2. Normalized `old.reddit.com` hostnames to `www.reddit.com` in `app/api/reddit/route.ts` to protect against legacy links.
+3. Added strict content validation in `fetchFromReddit`: throws `UpstreamRedditError(502)` if the response starts with HTML doctypes or redirects to `/login`, ensuring `unstable_cache` never caches HTML challenge/login pages.
+4. Added client-side parser guards in `use-reddit.ts` to surface meaningful errors if non-XML is received.
+5. Forwarded `Retry-After` / `x-ratelimit-reset` on 429 errors from upstream Reddit to the client so `fetchWithRetry` waits for the exact rate-limit window.
+
 ---
 
 ## Summary
-When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, **always pass `{ expire: 0 }` to `revalidateTag`**, and **use `revalidate: false` with no manual `Cache-Control` headers** for indefinite caching.
+When modifying the proxy, **never use inline functions with `unstable_cache`**, **never pass `AbortSignal` to `fetch` if you expect Next.js to cache it**, **never enable `cacheComponents: true`** until the entire app is refactored for Partial Prerendering, **always pass `{ expire: 0 }` to `revalidateTag`**, **use `revalidate: false` with no manual `Cache-Control` headers** for indefinite caching, **never fetch from `old.reddit.com`** (which redirects unauthenticated traffic to a login wall), and **always guard `fetchFromReddit` against caching HTML responses as XML**.

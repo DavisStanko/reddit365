@@ -12,12 +12,14 @@ interface RateLimitTracker {
 class UpstreamRedditError extends Error {
   status: number;
   body: string;
+  retryAfter?: string | null;
 
-  constructor(status: number, body: string) {
+  constructor(status: number, body: string, retryAfter?: string | null) {
     super(`Reddit returned ${status}`);
     this.name = "UpstreamRedditError";
     this.status = status;
     this.body = body;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -59,7 +61,19 @@ async function fetchFromReddit(url: string): Promise<string> {
   const text = await res.text();
 
   if (!res.ok) {
-    throw new UpstreamRedditError(res.status, text);
+    const retryAfter = res.headers.get("Retry-After") || res.headers.get("x-ratelimit-reset");
+    throw new UpstreamRedditError(res.status, text, retryAfter);
+  }
+
+  // Guard against Reddit returning HTTP 200 with an HTML login/challenge page
+  const trimmed = text.trim();
+  if (
+    trimmed.startsWith("<!DOCTYPE html") ||
+    trimmed.startsWith("<!doctype html") ||
+    trimmed.startsWith("<html") ||
+    res.url.includes("/login")
+  ) {
+    throw new UpstreamRedditError(502, "Reddit returned HTML login page instead of RSS XML.");
   }
 
   return text;
@@ -104,6 +118,10 @@ export async function GET(request: NextRequest) {
     targetUrl = new URL(urlParam);
     if (targetUrl.hostname !== "old.reddit.com" && targetUrl.hostname !== "www.reddit.com") {
       return new NextResponse("Invalid url hostname", { status: 400 });
+    }
+    // Normalize old.reddit.com to www.reddit.com to avoid login wall redirects
+    if (targetUrl.hostname === "old.reddit.com") {
+      targetUrl.hostname = "www.reddit.com";
     }
     if (!targetUrl.pathname.endsWith(".rss")) {
       return new NextResponse("Invalid url path", { status: 400 });
@@ -151,7 +169,11 @@ export async function GET(request: NextRequest) {
     // Errors are NOT cached by unstable_cache, which is correct behavior for 429s.
     if (error instanceof UpstreamRedditError) {
       console.error("[Proxy] Reddit returned:", error.status, error.body.slice(0, 200));
-      return new NextResponse(error.body, { status: error.status });
+      const headers: Record<string, string> = {};
+      if (error.retryAfter) {
+        headers["Retry-After"] = String(Math.ceil(Number(error.retryAfter)) || error.retryAfter);
+      }
+      return new NextResponse(error.body, { status: error.status, headers });
     }
 
     console.error("[Proxy] Error:", error);

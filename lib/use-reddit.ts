@@ -63,7 +63,7 @@ function buildPostsUrl(
     basePath = `/r/${name}`;
   }
 
-  let targetUrl = `https://old.reddit.com${basePath}/${sort}.rss?limit=${PAGE_SIZE}`;
+  let targetUrl = `https://www.reddit.com${basePath}/${sort}.rss?limit=${PAGE_SIZE}`;
 
   if (sort === "top") {
     targetUrl += "&t=all";
@@ -86,7 +86,7 @@ function buildCommentsUrl(permalink: string, forceRefresh: boolean = false): str
   if (permalink.startsWith("http")) {
     try {
       const urlObj = new URL(permalink);
-      urlObj.host = "old.reddit.com";
+      urlObj.host = "www.reddit.com";
       const clean = urlObj.toString().endsWith("/")
         ? urlObj.toString().slice(0, -1)
         : urlObj.toString();
@@ -99,7 +99,7 @@ function buildCommentsUrl(permalink: string, forceRefresh: boolean = false): str
     }
   } else {
     const clean = permalink.endsWith("/") ? permalink.slice(0, -1) : permalink;
-    targetUrl = `https://old.reddit.com${clean}.rss?limit=50&sort=confidence`;
+    targetUrl = `https://www.reddit.com${clean}.rss?limit=50&sort=confidence`;
   }
 
   const baseUrl =
@@ -209,8 +209,13 @@ function parsePostFeed(
   text: string,
   fallbackFeed: string,
 ): { posts: Post[] } {
-  if (!text.trim().startsWith("<")) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("<")) {
     return { posts: [] };
+  }
+
+  if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html")) {
+    throw new Error("Received HTML login or challenge page instead of RSS feed from Reddit.");
   }
 
   const parser = new DOMParser();
@@ -220,6 +225,11 @@ function parsePostFeed(
   if (feedTitle && feedTitle.includes("page not found")) {
     const name = fallbackFeed.replace(/^r\//, "");
     throw new Error(`The subreddit "r/${name}" does not exist or is private.`);
+  }
+
+  const parserError = doc.querySelector("parsererror");
+  if (parserError && !doc.querySelector("entry")) {
+    throw new Error("Failed to parse Reddit RSS XML response.");
   }
 
   const entries = Array.from(doc.querySelectorAll("entry"));
@@ -595,7 +605,12 @@ export function useReddit(
 
         let newComments: FlatComment[] = [];
 
-        if (text.trim().startsWith("<")) {
+        const trimmed = text.trim();
+        if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html")) {
+          throw new Error("Received HTML login or challenge page instead of comments RSS feed from Reddit.");
+        }
+
+        if (trimmed.startsWith("<")) {
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, "text/xml");
           const entries = Array.from(doc.querySelectorAll("entry"));
