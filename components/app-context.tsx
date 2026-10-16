@@ -19,14 +19,14 @@ export interface SubredditItem {
 }
 
 const INITIAL_SUBSCRIBED: SubredditItem[] = [
-  { id: "askreddit", label: "AskReddit", icon: Hash },
-  { id: "worldnews", label: "worldnews", icon: Hash },
-  { id: "programming", label: "programming", icon: Hash },
-  { id: "technology", label: "technology", icon: Hash },
-  { id: "science", label: "science", icon: Hash },
+  { id: "askreddit", label: "askreddit", icon: Hash },
   { id: "gaming", label: "gaming", icon: Hash },
   { id: "movies", label: "movies", icon: Hash },
   { id: "music", label: "music", icon: Hash },
+  { id: "programming", label: "programming", icon: Hash },
+  { id: "science", label: "science", icon: Hash },
+  { id: "technology", label: "technology", icon: Hash },
+  { id: "worldnews", label: "worldnews", icon: Hash },
 ];
 
 
@@ -94,8 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ...item,
             icon: Hash,
           }));
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setSubredditsRaw(restored);
+          queueMicrotask(() => setSubredditsRaw(restored));
         }
       }
     } catch (e) {
@@ -105,8 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const storedFeed = localStorage.getItem("reddit365_activeFeed");
       if (storedFeed) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setActiveFeedRaw(storedFeed);
+        queueMicrotask(() => setActiveFeedRaw(storedFeed));
       }
     } catch (e) {
       console.error("Failed to load active feed", e);
@@ -115,13 +113,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const storedMediaPosts = localStorage.getItem("reddit365_mediaPostsEnabled");
       if (storedMediaPosts !== null) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMediaPostsEnabledRaw(storedMediaPosts !== "false");
+        queueMicrotask(() => setMediaPostsEnabledRaw(storedMediaPosts !== "false"));
       }
       const storedMediaComments = localStorage.getItem("reddit365_mediaCommentsEnabled");
       if (storedMediaComments !== null) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMediaCommentsEnabledRaw(storedMediaComments !== "false");
+        queueMicrotask(() => setMediaCommentsEnabledRaw(storedMediaComments !== "false"));
       }
     } catch (e) {
       console.error("Failed to load media settings", e);

@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   type ReactNode,
 } from "react";
 import { useAppContext } from "@/components/app-context";
@@ -17,8 +16,7 @@ const RedditContext = createContext<UseRedditReturn | null>(null);
  * and exposes all fetched state to children.
  */
 export function RedditProvider({ children }: { children: ReactNode }) {
-  const { activeFeed, currentSort, selectedPost, setSelectedPost } =
-    useAppContext();
+  const { activeFeed, currentSort, selectedPost } = useAppContext();
 
   const reddit = useReddit(
     activeFeed,

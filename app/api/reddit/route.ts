@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { unstable_cache, revalidateTag } from "next/cache";
 
 // ---------------------------------------------------------------------------
-// In-Memory Rate Limiter
+// Rate Limiter
 // ---------------------------------------------------------------------------
 interface RateLimitTracker {
   count: number;
   resetTime: number;
 }
 
+class UpstreamRedditError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`Reddit returned ${status}`);
+    this.name = "UpstreamRedditError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 const rateLimits = new Map<string, RateLimitTracker>();
 const RATE_LIMIT_MAX_REQUESTS = 120;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
-// ---------------------------------------------------------------------------
-// Force-Refresh Cooldown
-// ---------------------------------------------------------------------------
-const lastRefreshTimes = new Map<string, number>();
-const REFRESH_COOLDOWN_MS = 30 * 1000; // 30 seconds
+const UPSTREAM_TIMEOUT_MS = 30 * 1000;
 
-// ---------------------------------------------------------------------------
-// Shared fetch headers for all upstream Reddit requests
-// ---------------------------------------------------------------------------
-const REDDIT_HEADERS = {
+const REDDIT_REQUEST_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -38,41 +41,28 @@ const REDDIT_HEADERS = {
 };
 
 // ---------------------------------------------------------------------------
-// Cached fetcher — uses "use cache: remote" so the result is stored in
-// Vercel's persistent remote Data Cache and shared across all users and
-// serverless invocations. This replaces the deprecated unstable_cache
-// approach which only stored in ephemeral in-memory cache that was destroyed
-// between serverless invocations.
-//
-// cacheLife("max") = indefinite TTL (revalidate: 30 days, expire: 1 year).
-// cacheTag() per URL enables targeted invalidation via revalidateTag().
+// Static Fetch Function (MUST be static for unstable_cache key stability)
 // ---------------------------------------------------------------------------
-async function fetchRedditRSS(url: string): Promise<string> {
-  "use cache: remote";
+async function fetchFromReddit(url: string): Promise<string> {
+  console.log(`[Proxy] Fetching fresh data from Reddit for: ${url}`);
 
-  const { cacheLife, cacheTag } = await import("next/cache");
-  cacheLife("max");
-  cacheTag(cacheTagForUrl(url));
+  const fetchPromise = fetch(url, {
+    headers: REDDIT_REQUEST_HEADERS,
+    cache: "no-store", // We manage cache explicitly via unstable_cache
+  });
 
-  const res = await fetch(url, { headers: REDDIT_HEADERS, cache: "no-store" });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Upstream timeout")), UPSTREAM_TIMEOUT_MS)
+  );
+
+  const res = (await Promise.race([fetchPromise, timeoutPromise])) as Response;
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Reddit returned ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return text;
-}
 
-// ---------------------------------------------------------------------------
-// Deterministic cache tag from a Reddit RSS URL.
-// Tags are limited to 256 chars, so we hash long URLs.
-// ---------------------------------------------------------------------------
-function cacheTagForUrl(url: string): string {
-  // Simple deterministic hash: prefix + condensed URL
-  const condensed = url
-    .replace(/^https?:\/\//, "")
-    .replace(/[^a-zA-Z0-9]/g, "_")
-    .slice(0, 200);
-  return `rss_${condensed}`;
+  if (!res.ok) {
+    throw new UpstreamRedditError(res.status, text);
+  }
+
+  return text;
 }
 
 export async function GET(request: NextRequest) {
@@ -92,28 +82,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Periodic garbage collection to prevent memory leaks from old IPs and old refresh times
+  // Periodic garbage collection for rate limits
   if (Math.random() < 0.05) {
     for (const [key, value] of rateLimits.entries()) {
       if (now > value.resetTime) {
         rateLimits.delete(key);
       }
     }
-    for (const [url, time] of lastRefreshTimes.entries()) {
-      if (now - time > REFRESH_COOLDOWN_MS) {
-        lastRefreshTimes.delete(url);
-      }
-    }
   }
 
   const urlParam = request.nextUrl.searchParams.get("url");
-  let forceRefresh = request.nextUrl.searchParams.get("forceRefresh") === "true";
+  const forceRefresh = request.nextUrl.searchParams.get("forceRefresh") === "true";
   
   if (!urlParam) {
     return new NextResponse("Missing url param", { status: 400 });
   }
 
-  // URL Validation to prevent SSRF
+  // URL Validation
   let targetUrl: URL;
   try {
     targetUrl = new URL(urlParam);
@@ -123,38 +108,36 @@ export async function GET(request: NextRequest) {
     if (!targetUrl.pathname.endsWith(".rss")) {
       return new NextResponse("Invalid url path", { status: 400 });
     }
-  } catch (err) {
+  } catch {
     return new NextResponse("Invalid url format", { status: 400 });
   }
 
-  // 2. Force-Refresh Cooldown Check
+  const urlString = targetUrl.toString();
+  // Create a safe tag string
+  const cacheTag = `reddit-${Buffer.from(urlString).toString("base64")}`;
+
+  // 2. Handle Force Refresh
   if (forceRefresh) {
-    const urlString = targetUrl.toString();
-    const lastRefresh = lastRefreshTimes.get(urlString);
-    
-    if (lastRefresh && (now - lastRefresh < REFRESH_COOLDOWN_MS)) {
-      console.warn(`[Proxy] Cooldown active for ${urlString}. Ignoring forceRefresh.`);
-      // Strip the forceRefresh flag to serve the cache instead
-      forceRefresh = false;
-    } else {
-      // Update the last refresh time
-      lastRefreshTimes.set(urlString, now);
-    }
+    console.log(`[Proxy] Force refresh requested, invalidating tag: ${cacheTag}`);
+    // Use the exact parameters Next.js requires for on-demand revalidation
+    revalidateTag(cacheTag, { expire: 0 });
   }
 
-  try {
-    if (forceRefresh) {
-      // Invalidate the remote cache entry for this URL, then re-fetch.
-      // revalidateTag with { expire: 0 } immediately expires the entry so
-      // the next call to fetchRedditRSS will miss cache and fetch fresh.
-      const tag = cacheTagForUrl(targetUrl.toString());
-      revalidateTag(tag, { expire: 0 });
+  // 3. Dynamic Cache Wrapper
+  // We construct the wrapper inside the request to use dynamic tags, but we 
+  // pass the STATIC `fetchFromReddit` function so `cb.toString()` is stable.
+  const getCachedRedditFeed = unstable_cache(
+    fetchFromReddit,
+    ["reddit-proxy", urlString], // Stable key parts
+    {
+      revalidate: false, // Indefinite TTL
+      tags: [cacheTag],
     }
+  );
 
-    // Serve from / populate the persistent remote Data Cache.
-    // If forceRefresh just expired the tag above, this call will miss
-    // the cache and fetch fresh data from Reddit, then cache it.
-    const text = await fetchRedditRSS(targetUrl.toString());
+  // 4. Fetch (from cache or upstream)
+  try {
+    const text = await getCachedRedditFeed(urlString);
 
     return new NextResponse(text, {
       status: 200,
@@ -163,8 +146,15 @@ export async function GET(request: NextRequest) {
         "Access-Control-Allow-Origin": "*",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // unstable_cache throws if the underlying function throws.
+    // Errors are NOT cached by unstable_cache, which is correct behavior for 429s.
+    if (error instanceof UpstreamRedditError) {
+      console.error("[Proxy] Reddit returned:", error.status, error.body.slice(0, 200));
+      return new NextResponse(error.body, { status: error.status });
+    }
+
     console.error("[Proxy] Error:", error);
-    return new NextResponse(error.message, { status: 500 });
+    return new NextResponse(error instanceof Error ? error.message : String(error), { status: 500 });
   }
 }

@@ -12,6 +12,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **CRITICAL:** This document (`AGENTS.md`) is the single source of truth for the project. If you make any design, structural, or behavioral changes to the application, you **MUST** update this document to reflect those changes before completing your task. Do not let this document fall out of sync with the codebase.
 
+**CACHING PROTOCOL:**
+1. **READ BEFORE TOUCH:** You must read `CACHING_ARCHITECTURE.md` *before* suggesting or implementing any caching changes.
+2. **APPEND ONLY:** `CACHING_ARCHITECTURE.md` is an append-only historical log of failures. **NEVER delete old failed attempts.** Add new findings to it.
+3. **DO NOT ASSUME IT'S FIXED:** Caching in Next.js serverless is extremely tricky. Do not boldly assume your fix works in production until explicitly verified.
+4. **KNOWLEDGE SYNCHRONIZATION:** If you modify `CACHING_ARCHITECTURE.md`, you **MUST** sync the exact changes to its Knowledge Item snapshot in `.gemini/antigravity/knowledge/reddit365_caching/`.
+
 ## What This Project Is
 
 **Reddit365 is a pixel-faithful UI clone of Microsoft Outlook (New Outlook / Monarch) that displays Reddit content instead of emails.**
@@ -54,24 +60,24 @@ All styles live in `app/outlook.css` (imported globally). **Never use Tailwind u
 
 ## Layout Architecture
 
-The shell is a strict flex column. **Do not alter the shell structure without a very good reason.**
+The shell body is a strict flex row. **Do not alter the shell structure without a very good reason.**
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  TopBar (height: 48px, bg: --outlook-blue)          │  ← .top-bar
-├──────┬──────────────────────────────────────────────┤
-│      │  Ribbon (Tabs & Commands)                    │  ← .ribbon
-│ Icon ├──────────────┬──────────────┬────────────────┤
-│ Rail │  Folder Pane │ Message List │  Reading Pane  │
-│ 48px │  fixed:220   │ fixed:330    │  flex: 1       │
-│      │  min:160     │ min:200      │  min: 0        │
-│      │  max:400     │ max:600      │                │
-└──────┴──────────────┴──────────────┴────────────────┘
+┌──────┬────────────────────────────────────────────────┐
+│      │  Double Header (top bar + ribbon, 89px)        │  ← double_header.png
+│ Full ├──────────────┬──────────────┬──────────────────┤
+│ Side │  Folder Pane │ Message List │  Reading Pane    │
+│ 65px │  fixed:212   │ fixed:350    │  flex: 1         │
+│      │  min:160     │ min:200      │  min: 0          │
+│      │  max:400     │ max:600      │                  │
+└──────┴──────────────┴──────────────┴──────────────────┘
 ```
 
 - **`.outlook-shell`** — `display: flex; flex-direction: column; height: 100vh; overflow: hidden`
 - **`.outlook-shell__body`** — `display: flex; flex: 1; overflow: hidden`
-- **`.outlook-shell__main-area`** — Container for the Ribbon and Panes, `flex: 1; display: flex; flex-direction: column`
+- **`full_side.png` container** — `width: 65px; align-self: stretch` — sidebar image spans full height
+- **`.outlook-shell__main-area`** — Container for the double header image and panes, `flex: 1; display: flex; flex-direction: column`
+- **`double_header.png` container** — `height: 89px; width: 100%` — combined top bar + ribbon image
 - **`.outlook-shell__panes`** — `display: flex; flex: 1; overflow: hidden`
 - **`.outlook-shell__folder`** — **Folder Pane** (Feed selection), fixed width, `border-right`
 - **`.outlook-shell__list`** — **Message List** (Post selection), fixed width, `border-right`
@@ -92,13 +98,12 @@ The shell is a strict flex column. **Do not alter the shell structure without a 
 
 | File / Element | Column Name | Outlook Equivalent | Notes |
 |---|---|---|---|
-| `/public/images/top-header.png` | N/A | Top ribbon/nav bar | Static image replacing top bar |
-| `/public/images/sidebar.png` | N/A | Left nav icon strip | Static image replacing icon rail |
-| `/public/images/second-header.png` | N/A | Ribbon Toolbar | Static image replacing ribbon |
+| `/public/images/full_side.png` | N/A | Left nav icon strip | Full-height sidebar (65px wide), spans entire viewport height alongside the main area |
+| `/public/images/double_header.png` | N/A | Top bar + Ribbon Toolbar | Combined header image (89px tall), placed at top of main area to the right of the sidebar — replaces the old separate `top-header.png` and `second-header.png` |
 | `components/layout/folder-pane.tsx` | **Folder Pane** | Folder list sidebar | Subreddits as "folders", supports DnD and editing |
 | `components/layout/post-list.tsx` | **Message List** | Message list / inbox | Feed view (posts) |
 | `components/layout/content-pane.tsx` | **Reading Pane** | Reading/message pane | Detail view |
-| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 4 tabs: Using Reddit365, How Reddit365 Works, Settings, Feedback. Triggered on first visit and by clicking either header image. |
+| `components/help-modal.tsx` | N/A | N/A | Help & Settings modal with 4 tabs: Using Reddit365, How Reddit365 Works, Settings, Feedback. Triggered on first visit and by clicking the double header image. |
 | `lib/media-embed.tsx` | N/A | N/A | Modular media detection and rendering: `detectMedia()`, `extractCommentMedia()`, `MediaEmbed`, `MediaEmbedList` components |
 
 ---
@@ -161,9 +166,9 @@ The ONLY viable path forward for a basic read-only frontend is using Reddit's pu
 2. **Initial load.** When the app mounts or the active feed changes (different subreddit, or different sort: Hot / New / Top), fetch the first page of posts immediately.
 3. **No pagination.** Posts are fetched once per feed selection — one request returning up to 100 posts (the RSS hard cap). No infinite scroll or "load more" mechanism exists. Do not re-introduce pagination; the single-request approach is intentional for rate limiting.
 4. **Comments on demand.** Comments are fetched *only* when the user selects a specific post. Never fetch comments speculatively or in the background. No post is auto-selected on load to avoid fetching posts and comments simultaneously, preventing rate limit bursts. Any rate limits encountered are handled by `fetchWithRetry` which implements an exponential backoff strategy on 429s (max 5 attempts) and respects the `Retry-After` header if present before surfacing an error.
-5. **Server-side cache.** The API proxy (`app/api/reddit/route.ts`) uses a standalone `fetchRedditRSS()` function annotated with `"use cache: remote"` (Next.js 16 Cache Components). This stores fetched RSS data in Vercel's **persistent remote Data Cache**, shared across all users and serverless invocations. The `cacheComponents: true` flag is enabled in `next.config.ts`. Each unique URL gets its own cache entry tagged via `cacheTag()`, with `cacheLife("max")` for near-indefinite TTL. **Do not** revert to `unstable_cache` (deprecated in Next.js 16, uses ephemeral in-memory storage that doesn't survive serverless cold starts), `fetch()` with `force-cache` (unreliable in Route Handlers since they are dynamic routes), or any custom in-memory / `fs` disk cache. Do not set `Cache-Control` headers on successful responses.
-6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh using the refresh button (which sends `forceRefresh=true`, causing the proxy to call `revalidateTag(tag, { expire: 0 })` to immediately expire the cache entry — the subsequent `fetchRedditRSS()` call then misses cache and fetches fresh data from Reddit), or by re-selecting the feed / changing the sort tab (which serves from cache).
-7. **Backend Hardening.** The API proxy enforces an IP-based rate limit to prevent abuse and a strict 30-second timeout on upstream Reddit fetches (using `AbortSignal.timeout` or `AbortController`) to prevent hanging serverless invocations.
+5. **Server-side shared cache.** The API proxy (`app/api/reddit/route.ts`) uses `unstable_cache` from `next/cache` with `revalidate: false` (indefinite TTL, FIFO eviction) and per-URL `tags` for targeted `revalidateTag` invalidation on force-refresh. `unstable_cache` writes to the same persistent Vercel Data Cache KV store as `'use cache: remote'`, but works in any context without requiring `cacheComponents: true`. **Do NOT add `cacheComponents: true` to `next.config.ts`** — that flag also enables PPR (Partial Prerendering) globally, which breaks existing Server Components not designed for it. `fetch()` with `cache: "force-cache"` in a Route Handler was deliberately **not** used: in serverless environments, in-process memory is destroyed after each invocation, so `force-cache` provides zero cross-request persistence. Do not revert to `force-cache`, do not add a client-side cache, fixed TTL, custom in-memory cache, or `fs` disk cache. Do not set `Cache-Control` headers on successful responses.
+6. **No background polling.** Do not auto-refresh feeds on a timer. The user can manually refresh using the refresh button (which sends `forceRefresh=true`, causing the proxy to invalidate only that RSS URL's cache tag with `revalidateTag(tag, { expire: 0 })`, fetch fresh content, and store the replacement in the Next.js Data Cache), or by re-selecting the feed / changing the sort tab (which serves from cache).
+7. **Backend Hardening.** The API proxy enforces an IP-based rate limit to prevent abuse and a strict 30-second timeout on upstream Reddit fetches (using `Promise.race` with `setTimeout`, NOT `AbortSignal.timeout` which bypasses caching) to prevent hanging serverless invocations.
 
 ### RSS Limits — What Actually Matters
 - **Posts per feed:** `limit=100` in the RSS URL (Reddit RSS hard cap). One request of 100 is strictly better for rate limiting than multiple small requests. The feed does **not** paginate — 100 posts is the ceiling per feed load.
